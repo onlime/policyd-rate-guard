@@ -1,10 +1,10 @@
 from importlib import import_module
 
-def connect_database(self, conf):
+def connect_database(conf):
     driver = conf.get('DB_DRIVER', 'pymysql')
     backend = import_module(driver)
 
-    self.connection = backend.connect(
+    return backend.connect(
         host=conf.get('DB_HOST', 'localhost'),
         port=conf.get('DB_PORT', 3306),
         user=conf.get('DB_USER', 'root'),
