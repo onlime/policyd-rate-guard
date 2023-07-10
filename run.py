@@ -60,3 +60,5 @@ class Server:
                 sys.stderr.write('Error removing socket file: %s\n' % error)
                 sys.stderr.flush()
 
+if __name__ == '__main__': # pragma: no cover
+    Server()

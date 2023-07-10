@@ -16,3 +16,33 @@ $ source venv/bin/activate
 (venv)$ cp yoyo.ini.example yoyo.ini
 (venv)$ yoyo apply
 ```
+
+## Running the daemon
+
+To run the daemon, run the following commands:
+
+If needed start the testing DB:
+
+```bash
+$ docker-compose up -d
+```
+
+Then run the daemon:
+
+```bash
+$ cp .env.example .env # & Adjust the settings
+$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
+$ yoyo apply
+$ python3 run.py
+```
+
+## Running the tests
+
+To run the tests, run the following commands:
+
+```bash
+$ docker-compose up -d
+$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
+$ yoyo apply
+$ ./tests.sh
+```
