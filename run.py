@@ -1,17 +1,16 @@
 import os
-import sys
 import socket
 import threading
 from app.conf import Config
+from app.handler import Handler
+from app.logging import get_logger
 
 class Daemon:
 
     def __init__(self) -> None:
         self.conf = Config()
+        self.logger = get_logger(self.conf)
         self.run()
-
-    def handle(self, conn: socket.socket, addr: tuple) -> None:
-        conn.close()
 
     def run(self) -> None:
         """Run server"""
@@ -19,7 +18,10 @@ class Daemon:
         while True:
             try:
                 conn, addr = self.socket.accept()
-                threading.Thread(target=self.handle, args=(conn, addr)).start()
+                threading.Thread(
+                    target=Handler,
+                    args=(conn, addr, self.conf, self.logger)
+                ).start()
             except KeyboardInterrupt:
                 break
         self.close_socket()
@@ -55,8 +57,7 @@ class Daemon:
             try:
                 os.remove(socket_conf[0])
             except OSError as error:
-                sys.stderr.write('Error removing socket file: %s\n' % error)
-                sys.stderr.flush()
+                self.logger.error('Error removing socket file: %s', error)
 
 if __name__ == '__main__': # pragma: no cover
     Daemon()
