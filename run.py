@@ -4,15 +4,13 @@ import socket
 import threading
 from app.conf import Config
 
-class Server:
+class Daemon:
 
     def __init__(self) -> None:
         self.conf = Config()
         self.run()
 
     def handle(self, conn: socket.socket, addr: tuple) -> None:
-        print('Connected by', addr)
-        conn.sendall(b'Hello, world')
         conn.close()
 
     def run(self) -> None:
@@ -61,4 +59,4 @@ class Server:
                 sys.stderr.flush()
 
 if __name__ == '__main__': # pragma: no cover
-    Server()
+    Daemon()
