@@ -12,3 +12,18 @@ services:
       MYSQL_PASSWORD: Example1234
     ports:
       - 13312:3306
+  policyd:
+    build: .
+    restart: always
+    ports:
+      - 12526:12526
+  postfix:
+    image: danilsmirnov/postfix
+    restart: always
+    ports:
+      - '1025:25'
+    volumes:
+      - ./docker-postfix/main.cf:/etc/postfix/main.cf
+    environment:
+      MAIL_DOMAIN: example.com
+      SMTP_USER: 'test01:Example1234,test02:Example1234,test03:Example1234'

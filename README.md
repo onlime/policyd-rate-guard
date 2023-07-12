@@ -19,6 +19,8 @@ $ source venv/bin/activate
 
 ## Running the daemon
 
+### Local
+
 To run the daemon, run the following commands:
 
 If needed start the testing DB:
@@ -35,6 +37,29 @@ $ cp yoyo.ini.example yoyo.ini # & Adjust the settings
 $ yoyo apply
 $ python3 run.py
 ```
+
+### Docker
+
+To run a full test environment with a postfix with SASL auth and a policyd-rate-guard daemon, run the following commands:
+
+1. You have to seed the database before running the daemon. This is done like that:
+
+```bash
+$ docker-compose up -d db
+$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
+$ yoyo apply
+$ docker-compose stop db
+```
+
+2. Then run the daemon:
+
+```bash
+$ docker-compose build
+$ docker-compose up -d
+```
+
+3. With a SMTP client connect to `localhost:1025` with user `test01@example.com` and password `Example1234` and send some mails.
+
 
 ## Running the tests
 
