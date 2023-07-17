@@ -15,6 +15,7 @@ class Ratelimit:
         logger: object = None,
     ):
         self.sender = sender
+        self.id = id
         self.quota = quota
         self.quota_reset = quota_reset
         self.quota_locked = quota_locked
@@ -22,12 +23,13 @@ class Ratelimit:
         self.rcpt_counter = rcpt_counter
 
         self.db = db
+        self.cursor = db.cursor()
         self.conf = conf
         self.logger = logger
 
     def store(self):
         """Store ratelimit in database"""
-        if self.id:
+        if self.id is not None:
             self.update()
         else:
             self.store_new()
@@ -35,32 +37,30 @@ class Ratelimit:
     def store_new(self):
         """Store new ratelimit in database"""
         self.logger.debug('Storing ratelimit')
-        self.db.execute(
-            'INSERT INTO ratelimits (sender, quota, quota_reset, quota_locked, msg_counter, rcpt_counter) VALUES (?, ?, ?, ?, ?, ?)',
+        self.cursor.execute(
+            'INSERT INTO ratelimits (sender, quota, quota_reset, quota_locked, msg_counter, rcpt_counter) VALUES (%s, %s, %s, %s, %s, %s)',
             (
                 self.sender,
                 self.quota,
                 self.quota_reset,
                 self.quota_locked,
                 self.msg_counter,
-                self.rcpt_counter,
+                self.rcpt_counter
             )
         )
-        self.id = self.db.lastrowid
+        self.id = self.cursor.lastrowid
         self.db.commit()
 
     def update(self):
         """Update ratelimit in database"""
         self.logger.debug('Updating ratelimit')
-        self.db.execute(
-            'UPDATE ratelimits SET quota = ?, msg_counter = ?, rcpt_counter = ? WHERE id = ?',
+        self.cursor.execute(
+            'UPDATE ratelimits SET quota = %s, msg_counter = %s, rcpt_counter = %s WHERE id = %s',
             (
                 self.quota,
-                self.quota_reset,
-                self.quota_locked,
                 self.msg_counter,
                 self.rcpt_counter,
-                self.id,
+                self.id
             )
         )
         self.db.commit()
@@ -77,7 +77,7 @@ class Ratelimit:
 
     def add_rcpt(self, count: int):
         """Add recipient to ratelimit"""
-        self.logger.debug('Adding recipients to ratelimit')
+        self.logger.debug('Adding recipients to ratelimit: %i', count)
         self.rcpt_counter += count
 
     def check_over_quota(self) -> bool:
@@ -91,12 +91,26 @@ class Ratelimit:
     @staticmethod
     def find(sender: str, db: object, logger: object, conf: object):
         """Get ratelimit for sender"""
+        cursor = db.cursor()
         logger.debug('Getting ratelimit for sender %s', sender)
-        ratelimit = db.execute(
-            'SELECT * FROM ratelimits WHERE sender = ?',
+        cursor.execute(
+            'SELECT * FROM ratelimits WHERE sender = %s',
             (sender,)
-        ).fetchone()
+        )
+        ratelimit = cursor.fetchone()
         if ratelimit is None:
             logger.debug('No ratelimit found for sender %s', sender)
             return Ratelimit(sender, conf=conf, db=db, logger=logger)
-        return Ratelimit(*ratelimit, db=db, conf=conf, logger=logger)
+        logger.debug('Ratelimit found: %s', ratelimit)
+        return Ratelimit(
+            ratelimit[1],
+            ratelimit[0],
+            ratelimit[2],
+            ratelimit[3],
+            ratelimit[4],
+            ratelimit[5],
+            ratelimit[6],
+            db=db,
+            conf=conf,
+            logger=logger
+        )

@@ -6,7 +6,7 @@ def connect_database(conf):
     backend = import_module(driver)
 
     connection = getattr(sys.modules[__name__], 'connect_%s' % driver)(conf, backend)
-    return connection.cursor()
+    return connection
 
 
 def connect_pymysql(conf, backend):

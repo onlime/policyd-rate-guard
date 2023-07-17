@@ -26,14 +26,15 @@ class Message:
         self.bcc_addr = bcc_addr
 
         self.db = db
+        self.cursor = db.cursor()
         self.conf = conf
         self.logger = logger
 
     def store(self):
         """Store message in database"""
         self.logger.debug('Storing message')
-        self.db.execute(
-            'INSERT INTO messages (ratelimit_id, sender, sender_ip, rcpt_count, blocked, msgid, from_addr, to_addr, cc_addr, bcc_addr) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        self.cursor.execute(
+            'INSERT INTO messages (ratelimit_id, sender, sender_ip, rcpt_count, blocked, msgid, from_addr, to_addr, cc_addr, bcc_addr) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
                 self.ratelimit.get_id(),
                 self.sender,
@@ -56,9 +57,9 @@ class Message:
     
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
-        self.logger.debug('Updating ratelimit')
+        self.logger.debug('Updating ratelimit counters')
         self.ratelimit.add_msg()
-        self.ratelimit.add_rcpt(self.rcpt_count)
+        self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 
     def check_if_blocked(self) -> bool:

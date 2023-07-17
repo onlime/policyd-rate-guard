@@ -49,4 +49,10 @@ class Handler:
         message.update_ratelimit()
         message.store()
 
+        if blocked:
+            self.logger.info('Message from %s blocked', message.sender)
+            self.conn.send(b'defer_if_permit Rate limit reach, retry later')
+        else:
+            self.logger.debug('Message from %s accepted', message.sender)
+            self.conn.send(b'OK')
         self.conn.close()
