@@ -31,6 +31,7 @@ class Handler:
             except ValueError:
                 pass
 
+        # Handle message
         message = Message(
             self.request['sasl_username'],
             self.request['client_address'],
@@ -49,10 +50,17 @@ class Handler:
         message.update_ratelimit()
         message.store()
 
+        # Create response
         if blocked:
             self.logger.info('Message from %s blocked', message.sender)
-            self.conn.send(b'defer_if_permit Rate limit reach, retry later')
+            data = 'action=defer_if_permit Rate limit reach, retry later\n\n'
         else:
             self.logger.debug('Message from %s accepted', message.sender)
-            self.conn.send(b'OK')
+            data = 'action=OK\n\n'
+
+        # Send response
+        self.logger.debug('Sending data: %s', data)
+        self.conn.send(data.encode('utf-8'))
+
+        # Close connection
         self.conn.close()
