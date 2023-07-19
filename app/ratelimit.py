@@ -27,8 +27,14 @@ class Ratelimit:
         self.conf = conf
         self.logger = logger
 
+        self.changed = self.id is None
+
+
     def store(self):
         """Store ratelimit in database"""
+        if not self.changed:
+            self.logger.debug('Ratelimit not changed')
+            return
         if self.id is not None:
             self.update()
         else:
@@ -67,26 +73,42 @@ class Ratelimit:
 
     def get_id(self) -> int:
         """Get id of ratelimit"""
-        self.logger.debug('Getting id of ratelimit')
+        self.logger.debug('Getting id of ratelimit for %s', self.sender)
         return self.id
 
     def add_msg(self):
         """Add message to ratelimit"""
-        self.logger.debug('Adding message to ratelimit')
+        self.logger.debug('Adding message to ratelimit for %s', self.sender)
         self.msg_counter += 1
+        self.changed = True
 
     def add_rcpt(self, count: int):
         """Add recipient to ratelimit"""
-        self.logger.debug('Adding recipients to ratelimit: %i', count)
+        self.logger.debug('Adding recipients to ratelimit for %s: %i', self.sender, count)
         self.rcpt_counter += count
+        self.changed = True
 
     def check_over_quota(self) -> bool:
         """Check if ratelimit is over quota"""
-        self.logger.debug('Checking if ratelimit is over quota')
-        if self.rcpt_counter > self.quota:
-            self.logger.debug('Ratelimit is over quota')
+        self.logger.debug('Checking if ratelimit is over quota for %s', self.sender)
+        if self.rcpt_counter >= self.quota: # TODO: Block if rcpt_counter gets over quota with current mail?
+            self.logger.debug('Ratelimit is over quota for %s', self.sender)
             return True
         return False
+    
+    def reset_quota(self):
+        """Reset quota"""
+        self.logger.debug('Resetting quota for %s', self.sender)
+        if self.quota != self.quota_reset:
+            self.quota = self.quota_reset
+            self.changed = True
+
+    def reset_counters(self):
+        """Reset counters"""
+        self.logger.debug('Resetting counters for %s', self.sender)
+        self.msg_counter = 0
+        self.rcpt_counter = 0
+        self.changed = True
 
     @staticmethod
     def find(sender: str, db: object, logger: object, conf: object):
@@ -114,3 +136,26 @@ class Ratelimit:
             conf=conf,
             logger=logger
         )
+    
+    @staticmethod
+    def get_all(db: object, logger: object, conf: object) -> list:
+        cursor = db.cursor()
+        cursor.execute('SELECT * from ratelimits')
+        results = cursor.fetchall()
+        ratelimits = []
+        for result in results:
+            ratelimit = Ratelimit(
+                result[1],
+                result[0],
+                result[2],
+                result[3],
+                result[4],
+                result[5],
+                result[6],
+                db=db,
+                conf=conf,
+                logger=logger
+            )
+            ratelimits.append(ratelimit)
+        logger.debug('Found %i ratelimits', len(ratelimits))
+        return ratelimits
