@@ -19,14 +19,14 @@ class Handler:
         data = self.conn.recv(1024).decode('utf-8')
         if not data:
             raise Exception('No data received')
-        self.logger.debug('Received data: %s', data)
+        self.logger.debug('handler.py - Received data: %s', data)
         # Parse data
         for line in data.split("\n"): # TODO: How to get subject, cc, bcc?
             line = line.strip()
             try:
                 key, value = line.split(u'=', 1)
                 if value:
-                    self.logger.debug('Received header: %s=%s', key, value)
+                    self.logger.debug('handler.py - Received header: %s=%s', key, value)
                     self.request[key] = value
             except ValueError:
                 pass
@@ -52,14 +52,14 @@ class Handler:
 
         # Create response
         if blocked:
-            self.logger.info('Message from %s blocked', message.sender)
+            self.logger.info('handler.py - Message from %s blocked', message.sender)
             data = 'action=defer_if_permit Rate limit reach, retry later\n\n'
         else:
-            self.logger.debug('Message from %s accepted', message.sender)
+            self.logger.debug('handler.py - Message from %s accepted', message.sender)
             data = 'action=OK\n\n'
 
         # Send response
-        self.logger.debug('Sending data: %s', data)
+        self.logger.debug('handler.py - Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
 
         # Close connection

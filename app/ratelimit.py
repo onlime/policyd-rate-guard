@@ -33,7 +33,7 @@ class Ratelimit:
     def store(self):
         """Store ratelimit in database"""
         if not self.changed:
-            self.logger.debug('Ratelimit not changed')
+            self.logger.debug('ratelimit.py - Ratelimit not changed')
             return
         if self.id is not None:
             self.update()
@@ -42,7 +42,7 @@ class Ratelimit:
 
     def store_new(self):
         """Store new ratelimit in database"""
-        self.logger.debug('Storing ratelimit')
+        self.logger.debug('ratelimit.py - Storing ratelimit')
         self.cursor.execute(
             'INSERT INTO ratelimits (sender, quota, quota_reset, quota_locked, msg_counter, rcpt_counter) VALUES (%s, %s, %s, %s, %s, %s)',
             (
@@ -59,7 +59,7 @@ class Ratelimit:
 
     def update(self):
         """Update ratelimit in database"""
-        self.logger.debug('Updating ratelimit')
+        self.logger.debug('ratelimit.py - Updating ratelimit')
         self.cursor.execute(
             'UPDATE ratelimits SET quota = %s, msg_counter = %s, rcpt_counter = %s WHERE id = %s',
             (
@@ -73,39 +73,39 @@ class Ratelimit:
 
     def get_id(self) -> int:
         """Get id of ratelimit"""
-        self.logger.debug('Getting id of ratelimit for %s', self.sender)
+        self.logger.debug('ratelimit.py - Getting id of ratelimit for %s', self.sender)
         return self.id
 
     def add_msg(self):
         """Add message to ratelimit"""
-        self.logger.debug('Adding message to ratelimit for %s', self.sender)
+        self.logger.debug('ratelimit.py - Adding message to ratelimit for %s', self.sender)
         self.msg_counter += 1
         self.changed = True
 
     def add_rcpt(self, count: int):
         """Add recipient to ratelimit"""
-        self.logger.debug('Adding recipients to ratelimit for %s: %i', self.sender, count)
+        self.logger.debug('ratelimit.py - Adding recipients to ratelimit for %s: %i', self.sender, count)
         self.rcpt_counter += count
         self.changed = True
 
     def check_over_quota(self) -> bool:
         """Check if ratelimit is over quota"""
-        self.logger.debug('Checking if ratelimit is over quota for %s', self.sender)
+        self.logger.debug('ratelimit.py - Checking if ratelimit is over quota for %s', self.sender)
         if self.rcpt_counter >= self.quota: # TODO: Block if rcpt_counter gets over quota with current mail?
-            self.logger.debug('Ratelimit is over quota for %s', self.sender)
+            self.logger.debug('ratelimit.py - Ratelimit is over quota for %s', self.sender)
             return True
         return False
     
     def reset_quota(self):
         """Reset quota"""
-        self.logger.debug('Resetting quota for %s', self.sender)
+        self.logger.debug('ratelimit.py - Resetting quota for %s', self.sender)
         if self.quota != self.quota_reset:
             self.quota = self.quota_reset
             self.changed = True
 
     def reset_counters(self):
         """Reset counters"""
-        self.logger.debug('Resetting counters for %s', self.sender)
+        self.logger.debug('ratelimit.py - Resetting counters for %s', self.sender)
         self.msg_counter = 0
         self.rcpt_counter = 0
         self.changed = True
@@ -114,16 +114,16 @@ class Ratelimit:
     def find(sender: str, db: object, logger: object, conf: object):
         """Get ratelimit for sender"""
         cursor = db.cursor()
-        logger.debug('Getting ratelimit for sender %s', sender)
+        logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
         cursor.execute(
             'SELECT * FROM ratelimits WHERE sender = %s',
             (sender,)
         )
         ratelimit = cursor.fetchone()
         if ratelimit is None:
-            logger.debug('No ratelimit found for sender %s', sender)
+            logger.debug('ratelimit.py - No ratelimit found for sender %s', sender)
             return Ratelimit(sender, conf=conf, db=db, logger=logger)
-        logger.debug('Ratelimit found: %s', ratelimit)
+        logger.debug('ratelimit.py - Ratelimit found: %s', ratelimit)
         return Ratelimit(
             ratelimit[1],
             ratelimit[0],
@@ -157,5 +157,5 @@ class Ratelimit:
                 logger=logger
             )
             ratelimits.append(ratelimit)
-        logger.debug('Found %i ratelimits', len(ratelimits))
+        logger.debug('ratelimit.py - Found %i ratelimits', len(ratelimits))
         return ratelimits

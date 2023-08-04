@@ -13,7 +13,7 @@ class Cleaner:
 
     def cleanup(self) -> None:
         """Cleanup database"""
-        self.logger.debug('Cleaning up database')
+        self.logger.debug('cleanup.py - Cleaning up database')
         ratelimits = Ratelimit.get_all(self.db, self.logger, self.conf)
 
         for ratelimit in ratelimits:

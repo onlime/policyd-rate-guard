@@ -59,7 +59,7 @@ class Daemon:
             try:
                 os.remove(socket_conf[0])
             except OSError as error:
-                self.logger.error('Error removing socket file: %s', error)
+                self.logger.error('run.py - Error removing socket file: %s', error)
 
 if __name__ == '__main__': # pragma: no cover
     Daemon()

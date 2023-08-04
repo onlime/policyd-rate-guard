@@ -32,7 +32,7 @@ class Message:
 
     def store(self):
         """Store message in database"""
-        self.logger.debug('Storing message')
+        self.logger.debug('message.py - Storing message')
         self.cursor.execute(
             'INSERT INTO messages (ratelimit_id, sender, sender_ip, rcpt_count, blocked, msgid, from_addr, to_addr, cc_addr, bcc_addr) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
@@ -52,21 +52,21 @@ class Message:
 
     def get_ratelimit(self) -> None:
         """Get ratelimit for sender"""
-        self.logger.debug('Getting ratelimit')
+        self.logger.debug('message.py - Getting ratelimit')
         self.ratelimit = Ratelimit.find(self.sender, self.db, self.logger, self.conf)
     
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
-        self.logger.debug('Updating ratelimit counters')
+        self.logger.debug('message.py - Updating ratelimit counters')
         self.ratelimit.add_msg() # TODO: Also update counter if the message was blocked?
         self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 
     def check_if_blocked(self) -> bool:
         """Check if sender is blocked"""
-        self.logger.debug('Checking if sender is blocked')
+        self.logger.debug('message.py - Checking if sender is blocked')
         if self.ratelimit.check_over_quota():
-            self.logger.debug('Sender is blocked')
+            self.logger.debug('message.py - Sender is blocked')
             self.blocked = True
             return True
         self.blocked = False
