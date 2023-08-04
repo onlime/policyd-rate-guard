@@ -53,7 +53,8 @@ class Handler:
         # Create response
         if blocked:
             self.logger.info('handler.py - Message from %s blocked', message.sender)
-            data = 'action=defer_if_permit Rate limit reach, retry later\n\n'
+            action_text_blocked = self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reach, retry later')
+            data = 'action=defer_if_permit {}\n\n'.format(action_text_blocked)
         else:
             self.logger.debug('handler.py - Message from %s accepted', message.sender)
             data = 'action=OK\n\n'
