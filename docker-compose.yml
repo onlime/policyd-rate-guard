@@ -17,6 +17,8 @@ services:
     restart: always
     ports:
       - 12526:12526
+    environment:
+      QUOTA: 5
   postfix:
     image: danilsmirnov/postfix
     restart: always

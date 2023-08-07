@@ -47,13 +47,13 @@ class Handler:
         )
         message.get_ratelimit()
         blocked = message.check_if_blocked()
-        message.update_ratelimit()
+        message.update_ratelimit() # TODO: Should we increase the counters if already over quota?
         message.store()
 
         # Create response
         if blocked:
             self.logger.info('handler.py - Message from %s blocked', message.sender)
-            action_text_blocked = self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reach, retry later')
+            action_text_blocked = self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later')
             data = 'action=defer_if_permit {}\n\n'.format(action_text_blocked)
         else:
             self.logger.debug('handler.py - Message from %s accepted', message.sender)

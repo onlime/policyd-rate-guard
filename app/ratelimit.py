@@ -5,8 +5,8 @@ class Ratelimit:
         self,
         sender: str,
         id: int = None,
-        quota: int = 1000,
-        quota_reset: int = 1000,
+        quota: int = None,
+        quota_reset: int = None,
         quota_locked: bool = False,
         msg_counter: int = 0,
         rcpt_counter: int = 0,
@@ -16,8 +16,8 @@ class Ratelimit:
     ):
         self.sender = sender
         self.id = id
-        self.quota = quota
-        self.quota_reset = quota_reset
+        self.quota = quota if quota is not None else int(conf.get('QUOTA', 1000))
+        self.quota_reset = quota_reset if quota_reset is not None else int(conf.get('QUOTA', 1000))
         self.quota_locked = quota_locked
         self.msg_counter = msg_counter
         self.rcpt_counter = rcpt_counter
