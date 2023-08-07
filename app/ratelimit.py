@@ -56,6 +56,7 @@ class Ratelimit:
         )
         self.id = self.cursor.lastrowid
         self.db.commit()
+        self.changed = False
 
     def update(self):
         """Update ratelimit in database"""
@@ -70,6 +71,7 @@ class Ratelimit:
             )
         )
         self.db.commit()
+        self.changed = False
 
     def get_id(self) -> int:
         """Get id of ratelimit"""

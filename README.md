@@ -66,7 +66,7 @@ $ docker-compose up -d
 To run the tests, run the following commands:
 
 ```bash
-$ docker-compose up -d
+$ docker-compose up -d db
 $ cp yoyo.ini.example yoyo.ini # & Adjust the settings
 $ yoyo apply
 $ ./tests.sh

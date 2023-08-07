@@ -1,7 +1,5 @@
 import unittest
 
-from os import environ
-
 from app.conf import Config
 
 class TestConf(unittest.TestCase):

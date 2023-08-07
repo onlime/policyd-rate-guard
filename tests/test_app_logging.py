@@ -9,4 +9,4 @@ class TestAppLogging(unittest.TestCase):
     def test_get_logger(self) -> None:
         conf = Config('.env.test')
         logger = get_logger(conf)
-        self.assertEqual(logger.level, 10)
+        self.assertEqual(logger.level, 40)
