@@ -43,7 +43,7 @@ class Ratelimit:
         """Store new ratelimit in database"""
         self.logger.debug('ratelimit.py - Storing ratelimit')
         self.cursor.execute(
-            'INSERT INTO ratelimits (sender, quota, quota_reset, quota_locked, msg_counter, rcpt_counter) VALUES (%s, %s, %s, %s, %s, %s)',
+            'INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`) VALUES (%s, %s, %s, %s, %s, %s)',
             (
                 self.sender,
                 self.quota,
@@ -61,7 +61,7 @@ class Ratelimit:
         """Update ratelimit in database"""
         self.logger.debug('ratelimit.py - Updating ratelimit')
         self.cursor.execute(
-            'UPDATE ratelimits SET quota = %s, msg_counter = %s, rcpt_counter = %s WHERE id = %s',
+            'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s WHERE `id` = %s',
             (
                 self.quota,
                 self.msg_counter,
@@ -117,7 +117,7 @@ class Ratelimit:
         cursor = db.cursor()
         logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
         cursor.execute(
-            'SELECT * FROM ratelimits WHERE sender = %s',
+            'SELECT * FROM `ratelimits` WHERE `sender` = %s',
             (sender,)
         )
         result = cursor.fetchone()
@@ -141,7 +141,7 @@ class Ratelimit:
     @staticmethod
     def get_all(db: object, logger: object, conf: object) -> list:
         cursor = db.cursor()
-        cursor.execute('SELECT * from ratelimits')
+        cursor.execute('SELECT * from `ratelimits`')
         results = cursor.fetchall()
         ratelimits = []
         for result in results:
