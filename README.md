@@ -26,7 +26,7 @@ To run the daemon, run the following commands:
 If needed start the testing DB:
 
 ```bash
-$ docker-compose up -d
+$ docker-compose up -d db
 ```
 
 Then run the daemon:
@@ -48,7 +48,7 @@ To run a full test environment with a postfix with SASL auth and a policyd-rate-
 $ docker-compose up -d db
 $ cp yoyo.ini.example yoyo.ini # & Adjust the settings
 $ yoyo apply
-$ docker-compose stop db
+$ docker-compose stop db # if needed
 ```
 
 2. Then run the daemon:
@@ -58,7 +58,19 @@ $ docker-compose build
 $ docker-compose up -d
 ```
 
+Or only run Postfix and Policyd:
+
+```bash
+$ docker-compose up postfix policyd # No daemon so you see logs and can stop it with CTRL+C
+```
+
 3. With a SMTP client connect to `localhost:1025` with user `test01@example.com` and password `Example1234` and send some mails.
+
+4. Cleanup with this command:
+
+```bash
+$ docker-compose exec policyd python3 cleanup.py
+```
 
 
 ## Running the tests
