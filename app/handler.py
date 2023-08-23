@@ -52,7 +52,8 @@ class Handler:
             self.logger
         )
         message.get_ratelimit()
-        message.update_ratelimit() # Always update counter, even if the message was blocked!
+        was_blocked = message.is_blocked()
+        message.update_ratelimit() # Always update counter, even if quota limit was already reached before (was_blocked)!
         blocked = message.is_blocked() # ... and make sure we check for blocked after having raised the counter.
         message.store()
 
@@ -60,6 +61,8 @@ class Handler:
         if blocked:
             self.logger.warning('handler.py - Message from %s blocked', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
+            if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
+                self.logger.debug('handler.py - Quota limit reached for %s, notifying sender via webhook!', message.sender)
         else:
             self.logger.info('handler.py - Message from %s accepted', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
             self.send_response('OK')
