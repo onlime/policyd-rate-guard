@@ -58,12 +58,12 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(self.message.blocked, True)
 
     def test_store(self) -> None:
-        self.message.cursor.execute('SELECT count(*) FROM messages WHERE msgid = %s', ('test',))
+        self.message.cursor.execute('SELECT count(*) as count FROM messages WHERE msgid = %s', ('test',))
         result = self.message.cursor.fetchone()
-        old_count = result[0]
+        old_count = result['count']
         self.message.get_ratelimit()
         self.message.is_blocked()
         self.message.store()
-        self.message.cursor.execute('SELECT count(*) FROM messages WHERE msgid = %s', ('test',))
+        self.message.cursor.execute('SELECT count(*) as count FROM messages WHERE msgid = %s', ('test',))
         result = self.message.cursor.fetchone()
-        self.assertEqual(result[0],old_count + 1)
+        self.assertEqual(result['count'], old_count + 1)

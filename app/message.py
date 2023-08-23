@@ -24,9 +24,8 @@ class Message:
         self.to_addr = to_addr
         self.cc_addr = cc_addr
         self.bcc_addr = bcc_addr
-
-        self.db = db['connection']
-        self.cursor = db['cursor']
+        self.db = db
+        self.cursor = db.cursor()
         self.conf = conf
         self.logger = logger
 
