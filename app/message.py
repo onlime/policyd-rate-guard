@@ -57,7 +57,7 @@ class Message:
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
         self.logger.debug('message.py - Updating ratelimit counters for sender {}'.format(self.sender))
-        self.ratelimit.add_msg() # TODO: Also update counter if the message was blocked?
+        self.ratelimit.add_msg()
         self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 

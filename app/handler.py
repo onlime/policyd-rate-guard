@@ -34,7 +34,7 @@ class Handler:
                 if value:
                     self.logger.debug('handler.py - Received header: %s=%s', key, value)
                     self.request[key] = value
-            except ValueError: # Needed to ignore lines w/o "=" (e.g. empty lines)
+            except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
                 pass
 
         # Handle message
@@ -44,16 +44,16 @@ class Handler:
             self.request['recipient_count'],
             self.request['queue_id'],
             self.request['sender'],
-            self.request['recipient'] if 'recipient' in self.request else None, # TODO: Check if self.request.get is better
-            self.request['cc_address'] if 'cc_address' in self.request else None,
-            self.request['bcc_address'] if 'bcc_address' in self.request else None,
+            self.request.get('recipient'),
+            self.request.get('cc_address'),
+            self.request.get('bcc_address'),
             self.db,
             self.conf,
             self.logger
         )
         message.get_ratelimit()
-        message.update_ratelimit()
-        blocked = message.is_blocked()
+        message.update_ratelimit() # Always update counter, even if the message was blocked!
+        blocked = message.is_blocked() # ... and make sure we check for blocked after having raised the counter.
         message.store()
 
         # Create response
