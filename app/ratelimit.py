@@ -22,8 +22,8 @@ class Ratelimit:
         self.msg_counter = msg_counter
         self.rcpt_counter = rcpt_counter
 
-        self.db = db
-        self.cursor = db.cursor()
+        self.db = db['connection']
+        self.cursor = db['cursor']
         self.conf = conf
         self.logger = logger
 
@@ -115,7 +115,7 @@ class Ratelimit:
     @staticmethod
     def find(sender: str, db: object, logger: object, conf: object):
         """Get ratelimit for sender"""
-        cursor = db.cursor()
+        cursor = db['cursor']
         logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
         cursor.execute(
             'SELECT * FROM ratelimits WHERE sender = %s',
@@ -141,7 +141,7 @@ class Ratelimit:
     
     @staticmethod
     def get_all(db: object, logger: object, conf: object) -> list:
-        cursor = db.cursor()
+        cursor = db['cursor']
         cursor.execute('SELECT * from ratelimits')
         results = cursor.fetchall()
         ratelimits = []

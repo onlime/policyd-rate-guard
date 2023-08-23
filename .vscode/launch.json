@@ -1,0 +1,19 @@
+{
+    "configurations": [
+        {
+            "name": "Python: Unit Tests",
+            "type": "python",
+            "request": "launch",
+            "module": "unittest",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
+            "args": [
+                "discover",
+                "-s",
+                "${workspaceFolder}/tests",
+                "-p",
+                "test_*.py"
+            ],
+        }
+    ]
+}
