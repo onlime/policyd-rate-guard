@@ -1,0 +1,11 @@
+[Unit]
+Description=Service for PolicydRateGuard clan up job
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/policyd-rate-guard
+ExecStart=/opt/policyd-rate-guard/venv/bin/python /opt/policyd-rate-guard/cleanup.py
+User=postfix
+
+[Install]
+WantedBy=default.target

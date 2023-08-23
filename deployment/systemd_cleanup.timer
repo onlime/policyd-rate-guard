@@ -1,0 +1,8 @@
+[Unit]
+Description=Timer for PolicydRateGuard clean up job
+
+[Timer]
+OnCalendar=00:00:00
+
+[Install]
+WantedBy=timers.target
