@@ -3,13 +3,16 @@ version: '3.2'
 services:
   # Database service to set up a testing/development environment
   db:
-    image: percona:8
+    image: mysql:8.0
     restart: always
     environment:
-      MYSQL_RANDOM_ROOT_PASSWORD: "true"
+      MYSQL_ROOT_PASSWORD: test
+      # MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
       MYSQL_DATABASE: policyd-rate-guard
       MYSQL_USER: policyd-rate-guard
       MYSQL_PASSWORD: Example1234
+      MYSQL_INITDB_SKIP_TZINFO: 'yes'
+    command: --default-time-zone='+02:00'
     ports:
       - 13312:3306
   policyd:
