@@ -11,7 +11,13 @@ class Handler:
         self.conf = conf
         self.logger = logger # TODO: Add msgid to logger
         self.db = db
-        self.handle() # TODO: Log exceptions & close connection & raise exception
+        try:
+            self.handle()
+        except Exception as e: # pragma: no cover
+            self.logger.exception('handler.py - Unhandled Exception: %s', e)
+            self.send_response('OK')
+            self.conn.close()
+            # raise e # TODO: Integrate sentry-sdk, see #1
 
     def handle(self):
         """Handle request"""
@@ -51,18 +57,18 @@ class Handler:
         message.store()
 
         # Create response
-        # actions return to postfix, see http://www.postfix.org/access.5.html for a list of actions.
         if blocked:
             self.logger.warning('handler.py - Message from %s blocked', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
-            action_text_blocked = self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later')
-            data = 'action=DEFER_IF_PERMIT {}\n\n'.format(action_text_blocked)
+            self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
         else:
             self.logger.info('handler.py - Message from %s accepted', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
-            data = 'action=OK\n\n'
+            self.send_response('OK')
 
-        # Send response
+        self.conn.close()
+
+    def send_response(self, message: str = 'OK'):
+        """Send response"""
+        # actions return to postfix, see http://www.postfix.org/access.5.html for a list of actions.
+        data = 'action={}\n\n'.format(message)
         self.logger.debug('handler.py - Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
-
-        # Close connection
-        self.conn.close()

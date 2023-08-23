@@ -52,21 +52,21 @@ class Message:
 
     def get_ratelimit(self) -> None:
         """Get ratelimit for sender"""
-        self.logger.debug('message.py - Getting ratelimit')
+        self.logger.debug('message.py - Getting ratelimit for sender {}'.format(self.sender))
         self.ratelimit = Ratelimit.find(self.sender, self.db, self.logger, self.conf)
     
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
-        self.logger.debug('message.py - Updating ratelimit counters')
+        self.logger.debug('message.py - Updating ratelimit counters for sender {}'.format(self.sender))
         self.ratelimit.add_msg() # TODO: Also update counter if the message was blocked?
         self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 
     def is_blocked(self) -> bool:
         """Check if sender is blocked"""
-        self.logger.debug('message.py - Checking if sender is blocked')
+        self.logger.debug('message.py - Checking if sender {} is blocked'.format(self.sender))
         if self.ratelimit.check_over_quota():
-            self.logger.debug('message.py - Sender is blocked')
+            self.logger.debug('message.py - Sender {} is blocked'.format(self.sender))
             self.blocked = True
             return True
         self.blocked = False

@@ -8,10 +8,10 @@ To set up a basic developer environment, run the following commands:
 $ git clone git@gitlab.onlime.ch:onlime/policyd-rate-guard.git
 $ cd policyd-rate-guard
 $ python3 -m venv venv
-$ source venv/bin/activate
+$ . venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
-(venv)$ docker-compose up -d db
+$ docker-compose up -d db
 (venv)$ cp .env.example .env
 (venv)$ cp yoyo.ini.example yoyo.ini
 (venv)$ yoyo apply
@@ -89,7 +89,7 @@ To run the daemon in production, follow this:
 ```bash
 $ cd /opt/policyd-rate-guard
 $ python3 -m venv venv
-$ source venv/bin/activate
+$ . venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
 (venv)$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
@@ -121,6 +121,8 @@ To run the tests, run the following commands:
 ```bash
 $ docker-compose up -d db
 $ cp yoyo.ini.example yoyo.ini # & Adjust the settings
-$ yoyo apply
-$ ./tests.sh
+
+$ . venv/bin/activate
+(venv)$ yoyo apply
+(venv)$ ./tests.sh
 ```
