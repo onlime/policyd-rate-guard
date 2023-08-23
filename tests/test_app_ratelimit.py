@@ -47,6 +47,10 @@ class TestRatelimit(unittest.TestCase):
 
         ratelimit.rcpt_counter = 1000
         over_quota = ratelimit.check_over_quota()
+        self.assertFalse(over_quota)
+
+        ratelimit.rcpt_counter = 1001
+        over_quota = ratelimit.check_over_quota()
         self.assertTrue(over_quota)
 
     def test_reset_quota(self) -> None:

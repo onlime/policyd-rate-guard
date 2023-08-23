@@ -9,14 +9,14 @@ class Handler:
         self.conn = conn
         self.addr = addr
         self.conf = conf
-        self.logger = logger
+        self.logger = logger # TODO: Add msgid to logger
         self.db = db
-        self.handle()
+        self.handle() # TODO: Log exceptions & close connection & raise exception
 
     def handle(self):
         """Handle request"""
         # Read data
-        data = self.conn.recv(1024).decode('utf-8')
+        data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
         if not data:
             raise Exception('No data received')
         self.logger.debug('handler.py - Received data: %s', data)
@@ -28,7 +28,7 @@ class Handler:
                 if value:
                     self.logger.debug('handler.py - Received header: %s=%s', key, value)
                     self.request[key] = value
-            except ValueError:
+            except ValueError: # Needed to ignore lines w/o "=" (e.g. empty lines)
                 pass
 
         # Handle message
@@ -38,7 +38,7 @@ class Handler:
             self.request['recipient_count'],
             self.request['queue_id'],
             self.request['sender'],
-            self.request['recipient'] if 'recipient' in self.request else None,
+            self.request['recipient'] if 'recipient' in self.request else None, # TODO: Check if self.request.get is better
             self.request['cc_address'] if 'cc_address' in self.request else None,
             self.request['bcc_address'] if 'bcc_address' in self.request else None,
             self.db,
@@ -46,17 +46,18 @@ class Handler:
             self.logger
         )
         message.get_ratelimit()
-        blocked = message.check_if_blocked()
-        message.update_ratelimit() # TODO: Should we increase the counters if already over quota?
+        message.update_ratelimit()
+        blocked = message.is_blocked()
         message.store()
 
         # Create response
+        # actions return to postfix, see http://www.postfix.org/access.5.html for a list of actions.
         if blocked:
-            self.logger.info('handler.py - Message from %s blocked', message.sender)
+            self.logger.warning('handler.py - Message from %s blocked', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
             action_text_blocked = self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later')
-            data = 'action=defer_if_permit {}\n\n'.format(action_text_blocked)
+            data = 'action=DEFER_IF_PERMIT {}\n\n'.format(action_text_blocked)
         else:
-            self.logger.debug('handler.py - Message from %s accepted', message.sender)
+            self.logger.info('handler.py - Message from %s accepted', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
             data = 'action=OK\n\n'
 
         # Send response

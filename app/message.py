@@ -62,7 +62,7 @@ class Message:
         self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 
-    def check_if_blocked(self) -> bool:
+    def is_blocked(self) -> bool:
         """Check if sender is blocked"""
         self.logger.debug('message.py - Checking if sender is blocked')
         if self.ratelimit.check_over_quota():

@@ -24,13 +24,13 @@ class Daemon:
                     target=Handler,
                     args=(conn, addr, self.conf, self.logger, self.db)
                 ).start()
-            except KeyboardInterrupt:
+            except KeyboardInterrupt: # TODO: Check other exceptions
                 break
         self.close_socket()
 
     def open_socket(self) -> None:
         """Open socket for communications"""
-        socket_conf = self.conf.get_array('SOCKET', ['/var/spool/postfix/ratelimit/policy'])
+        socket_conf = self.conf.get_array('SOCKET', ['/var/spool/postfix/ratelimit/policy']) # TODO: Use better default
         if len(socket_conf) == 1:
             try:
                 os.remove(socket_conf[0])

@@ -42,15 +42,19 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(self.message.ratelimit.rcpt_counter, rcpt_counter_old + 3)
         self.assertEqual(self.message.ratelimit.msg_counter, msg_counter_old + 1)
 
-    def test_check_if_blocked(self) -> None:
+    def test_is_blocked(self) -> None:
         self.message.get_ratelimit()
         self.message.ratelimit.rcpt_counter = 0
         self.message.ratelimit.quota = 1000
-        self.message.check_if_blocked()
+        self.message.is_blocked()
+        self.assertEqual(self.message.blocked, False)
+        
+        self.message.ratelimit.rcpt_counter = 1000
+        self.message.is_blocked()
         self.assertEqual(self.message.blocked, False)
 
-        self.message.ratelimit.rcpt_counter = 1000
-        self.message.check_if_blocked()
+        self.message.ratelimit.rcpt_counter = 1001
+        self.message.is_blocked()
         self.assertEqual(self.message.blocked, True)
 
     def test_store(self) -> None:
@@ -58,7 +62,7 @@ class TestMessage(unittest.TestCase):
         result = self.message.cursor.fetchone()
         old_count = result[0]
         self.message.get_ratelimit()
-        self.message.check_if_blocked()
+        self.message.is_blocked()
         self.message.store()
         self.message.cursor.execute('SELECT count(*) FROM messages WHERE msgid = %s', ('test',))
         result = self.message.cursor.fetchone()

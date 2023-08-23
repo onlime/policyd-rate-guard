@@ -93,7 +93,7 @@ class Ratelimit:
     def check_over_quota(self) -> bool:
         """Check if ratelimit is over quota"""
         self.logger.debug('ratelimit.py - Checking if ratelimit is over quota for %s', self.sender)
-        if self.rcpt_counter >= self.quota: # TODO: Block if rcpt_counter gets over quota with current mail?
+        if self.rcpt_counter > self.quota:
             self.logger.debug('ratelimit.py - Ratelimit is over quota for %s', self.sender)
             return True
         return False

@@ -52,5 +52,5 @@ smtpd_recipient_restrictions = permit_sasl_authenticated,reject_unauth_destinati
 
 smtpd_data_restrictions =
         reject_unauth_pipelining,
-        check_policy_service inet:policyd:12526,
+        check_policy_service inet:policyd:10033,
         permit

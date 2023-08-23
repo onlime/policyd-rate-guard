@@ -8,6 +8,7 @@ def get_logger(conf):
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
     if conf.get('SYSLOG', 'False').lower() in ('true', 'yes', '1'):
         syslog = logging.handlers.SysLogHandler(address='/dev/log')
+        # TODO: Make facility configurable
         syslog.setFormatter(formatter)
         logger.addHandler(syslog)
     else:
