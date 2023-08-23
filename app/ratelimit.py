@@ -112,7 +112,7 @@ class Ratelimit:
         self.changed = True
 
     @staticmethod
-    def find(sender: str, db: object, logger: object, conf: object):
+    def find(sender: str, db: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
         cursor = db.cursor()
         logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
@@ -138,25 +138,36 @@ class Ratelimit:
             logger,
         )
     
+    # @staticmethod
+    # def get_all(db: object, logger: object, conf: object) -> list:
+    #     cursor = db.cursor()
+    #     cursor.execute('SELECT * from `ratelimits`')
+    #     results = cursor.fetchall()
+    #     ratelimits = []
+    #     for result in results:
+    #         ratelimit = Ratelimit(
+    #             result['sender'],
+    #             result['id'],
+    #             result['quota'],
+    #             result['quota_reset'],
+    #             result['quota_locked'],
+    #             result['msg_counter'],
+    #             result['rcpt_counter'],
+    #             db,
+    #             conf,
+    #             logger,
+    #         )
+    #         ratelimits.append(ratelimit)
+    #     logger.debug('ratelimit.py - Found %i ratelimits', len(ratelimits))
+    #     return ratelimits
+
     @staticmethod
-    def get_all(db: object, logger: object, conf: object) -> list:
+    def reset_all_counters(db: object, logger: object):
+        """Reset all ratelimit counters"""
+        logger.debug('ratelimit.py - Reset all counters')
         cursor = db.cursor()
-        cursor.execute('SELECT * from `ratelimits`')
-        results = cursor.fetchall()
-        ratelimits = []
-        for result in results:
-            ratelimit = Ratelimit(
-                result['sender'],
-                result['id'],
-                result['quota'],
-                result['quota_reset'],
-                result['quota_locked'],
-                result['msg_counter'],
-                result['rcpt_counter'],
-                db,
-                conf,
-                logger,
-            )
-            ratelimits.append(ratelimit)
-        logger.debug('ratelimit.py - Found %i ratelimits', len(ratelimits))
-        return ratelimits
+        # reset all counters
+        cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0')
+        # only reset quota if it is not locked
+        cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset` WHERE `quota_locked` = 0')
+        db.commit()

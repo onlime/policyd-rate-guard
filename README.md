@@ -38,6 +38,12 @@ $ cp yoyo.ini.example yoyo.ini # & Adjust the settings
 (venv)$ python3 run.py
 ```
 
+To cleanup (reset all counters and quotas) the database, run:
+
+```bash
+(venv)$ python3 cleanup.py
+```
+
 > You could manually connect to MySQL like this (or with a GUI tool like [TablePlus](https://tableplus.com/)):
 >
 > ```bash

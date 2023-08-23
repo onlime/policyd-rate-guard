@@ -19,10 +19,10 @@ class TestRatelimit(unittest.TestCase):
         self.assertEqual(ratelimit.quota, 1000)
         self.assertEqual(ratelimit.rcpt_counter, 0)
 
-    def test_get_all(self) -> None:
-        ratelimits = Ratelimit.get_all(self.db, self.logger, self.conf)
-        self.assertEqual(type(ratelimits).__name__, 'list')
-        self.assertEqual(type(ratelimits[0]).__name__, 'Ratelimit')
+    # def test_get_all(self) -> None:
+    #     ratelimits = Ratelimit.get_all(self.db, self.logger, self.conf)
+    #     self.assertEqual(type(ratelimits).__name__, 'list')
+    #     self.assertEqual(type(ratelimits[0]).__name__, 'Ratelimit')
 
     def test_add_msg(self) -> None:
         ratelimit = Ratelimit.find('test@example.com', self.db, self.logger, self.conf)
