@@ -24,7 +24,6 @@ class Message:
         self.to_addr = to_addr
         self.cc_addr = cc_addr
         self.bcc_addr = bcc_addr
-
         self.db = db
         self.cursor = db.cursor()
         self.conf = conf
@@ -34,7 +33,7 @@ class Message:
         """Store message in database"""
         self.logger.debug('message.py - Storing message')
         self.cursor.execute(
-            'INSERT INTO messages (ratelimit_id, sender, sender_ip, rcpt_count, blocked, msgid, from_addr, to_addr, cc_addr, bcc_addr) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+            'INSERT INTO `messages` (`ratelimit_id`, `sender`, `sender_ip`, `rcpt_count`, `blocked`, `msgid`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
                 self.ratelimit.get_id(),
                 self.sender,

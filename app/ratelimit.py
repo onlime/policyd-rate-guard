@@ -21,7 +21,6 @@ class Ratelimit:
         self.quota_locked = quota_locked
         self.msg_counter = msg_counter
         self.rcpt_counter = rcpt_counter
-
         self.db = db
         self.cursor = db.cursor()
         self.conf = conf
@@ -44,7 +43,7 @@ class Ratelimit:
         """Store new ratelimit in database"""
         self.logger.debug('ratelimit.py - Storing ratelimit')
         self.cursor.execute(
-            'INSERT INTO ratelimits (sender, quota, quota_reset, quota_locked, msg_counter, rcpt_counter) VALUES (%s, %s, %s, %s, %s, %s)',
+            'INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`) VALUES (%s, %s, %s, %s, %s, %s)',
             (
                 self.sender,
                 self.quota,
@@ -62,7 +61,7 @@ class Ratelimit:
         """Update ratelimit in database"""
         self.logger.debug('ratelimit.py - Updating ratelimit')
         self.cursor.execute(
-            'UPDATE ratelimits SET quota = %s, msg_counter = %s, rcpt_counter = %s WHERE id = %s',
+            'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s WHERE `id` = %s',
             (
                 self.quota,
                 self.msg_counter,
@@ -118,45 +117,45 @@ class Ratelimit:
         cursor = db.cursor()
         logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
         cursor.execute(
-            'SELECT * FROM ratelimits WHERE sender = %s',
+            'SELECT * FROM `ratelimits` WHERE `sender` = %s',
             (sender,)
         )
-        ratelimit = cursor.fetchone()
-        if ratelimit is None:
+        result = cursor.fetchone()
+        if result is None:
             logger.debug('ratelimit.py - No ratelimit found for sender %s', sender)
             return Ratelimit(sender, conf=conf, db=db, logger=logger)
-        logger.debug('ratelimit.py - Ratelimit found: %s', ratelimit)
+        logger.debug('ratelimit.py - Ratelimit found: %s', result)
         return Ratelimit(
-            ratelimit[1],
-            ratelimit[0],
-            ratelimit[2],
-            ratelimit[3],
-            ratelimit[4],
-            ratelimit[5],
-            ratelimit[6],
-            db=db,
-            conf=conf,
-            logger=logger
+            result['sender'],
+            result['id'],
+            result['quota'],
+            result['quota_reset'],
+            result['quota_locked'],
+            result['msg_counter'],
+            result['rcpt_counter'],
+            db,
+            conf,
+            logger,
         )
     
     @staticmethod
     def get_all(db: object, logger: object, conf: object) -> list:
         cursor = db.cursor()
-        cursor.execute('SELECT * from ratelimits')
+        cursor.execute('SELECT * from `ratelimits`')
         results = cursor.fetchall()
         ratelimits = []
         for result in results:
             ratelimit = Ratelimit(
-                result[1],
-                result[0],
-                result[2],
-                result[3],
-                result[4],
-                result[5],
-                result[6],
-                db=db,
-                conf=conf,
-                logger=logger
+                result['sender'],
+                result['id'],
+                result['quota'],
+                result['quota_reset'],
+                result['quota_locked'],
+                result['msg_counter'],
+                result['rcpt_counter'],
+                db,
+                conf,
+                logger,
             )
             ratelimits.append(ratelimit)
         logger.debug('ratelimit.py - Found %i ratelimits', len(ratelimits))
