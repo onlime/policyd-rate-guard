@@ -16,7 +16,7 @@ services:
     build: .
     restart: always
     ports:
-      - 12526:12526
+      - 10033:10033
     environment:
       QUOTA: 5
   postfix:
