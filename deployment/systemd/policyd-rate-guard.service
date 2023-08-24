@@ -1,11 +1,12 @@
 [Unit]
 Description=PolicydRateGuard
-After=network.target
+After=syslog.target network.target
 
 [Service]
 Type=simple
 WorkingDirectory=/opt/policyd-rate-guard
 ExecStart=/opt/policyd-rate-guard/venv/bin/python /opt/policyd-rate-guard/run.py
+KillSignal=SIGINT
 Restart=on-failure
 User=postfix
 
