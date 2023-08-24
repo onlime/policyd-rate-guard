@@ -13,7 +13,7 @@ class Daemon:
         self.logger = get_logger(self.conf)
         self.db = connect_database(self.conf)
         # TODO: Improve socket configuration parsing
-        self.socket_conf = self.conf.get_array('SOCKET', ['127.0.0.1,10033'])
+        self.socket_conf = self.conf.get_array('SOCKET', '127.0.0.1,10033')
         self.run()
 
     def run(self) -> None:
