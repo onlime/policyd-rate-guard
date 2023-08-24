@@ -59,7 +59,7 @@ class Handler:
         message.store()
 
         # Detailed log message in the following format:
-        # XXXXXXXXXX: client=unknown[8.8.8.8], sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
+        # TEST1234567: client=unknown[8.8.8.8], sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
         log_message = '{}: client={}[{}], sasl_method={}, sasl_username={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
             message.msgid,
             message.client_name,
