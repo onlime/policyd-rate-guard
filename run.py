@@ -12,6 +12,8 @@ class Daemon:
         self.conf = Config()
         self.logger = get_logger(self.conf)
         self.db = connect_database(self.conf)
+        # TODO: Improve socket configuration parsing
+        self.socket_conf = self.conf.get_array('SOCKET', ['/var/spool/postfix/rate-guard/policyd'])
         self.run()
 
     def run(self) -> None:
@@ -24,14 +26,15 @@ class Daemon:
                     target=Handler,
                     args=(conn, addr, self.conf, self.logger, self.db)
                 ).start()
-            except KeyboardInterrupt: # TODO: Check other exceptions
+            except KeyboardInterrupt:
                 break
         self.close_socket()
 
     def open_socket(self) -> None:
         """Open socket for communications"""
-        socket_conf = self.conf.get_array('SOCKET', ['/var/spool/postfix/ratelimit/policy']) # TODO: Use better default
+        socket_conf = self.socket_conf
         if len(socket_conf) == 1:
+            # TODO: Create socket directory if it does not exist
             try:
                 os.remove(socket_conf[0])
             except OSError:
@@ -54,7 +57,7 @@ class Daemon:
     def close_socket(self) -> None:
         """Close socket"""
         self.socket.close()
-        socket_conf = self.conf.get_array('SOCKET', ['/var/spool/postfix/ratelimit/policy'])
+        socket_conf = self.socket_conf
         if len(socket_conf) == 1:
             try:
                 os.remove(socket_conf[0])
