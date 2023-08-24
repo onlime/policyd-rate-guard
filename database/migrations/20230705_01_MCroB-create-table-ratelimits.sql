@@ -1,4 +1,4 @@
--- Create Table ratelimits
+-- Create table ratelimits
 -- depends: 
 
 CREATE TABLE `ratelimits` (
