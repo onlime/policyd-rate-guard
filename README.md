@@ -176,3 +176,18 @@ $ . venv/bin/activate
 ```
 
 > Make sure to always run the tests inside your venv!
+
+### Create DB migrations
+
+In venv, use the [`yoyo new`](https://ollycope.com/software/yoyo/latest/#yoyo-new) command to create a new migration:
+
+```bash
+(venv)$ yoyo new --sql -m 'update table ratelimits'
+```
+
+The migration will be placed in `database/migrations` directory. After having written the migration statements, apply the migration like this:
+
+```bash
+(venv)$ yoyo apply
+```
+
