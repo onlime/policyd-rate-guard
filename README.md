@@ -81,6 +81,7 @@ $ cp deployment/systemd/* /etc/systemd/system/
 $ systemctl daemon-reload
 $ systemctl start policyd-rate-guard.service # Start the daemon
 $ systemctl enable policyd-rate-guard.service # Enable the daemon to start on boot
+$ systemctl start policyd-rate-guard-cleanup.timer # Start the cleanup timer
 $ systemctl enable policyd-rate-guard-cleanup.timer # Enable the cleanup timer
 ```
 
