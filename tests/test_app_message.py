@@ -64,3 +64,13 @@ class TestMessage(unittest.TestCase):
         self.message.store()
         new_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('test',))
         self.assertEqual(new_count, old_count + 1)
+
+    def test_get_props_description(self) -> None:
+        desc = self.message.get_props_description()
+        self.assertEqual(desc, 'msgid=test sender=test@example.com rcpt_count=3 from_addr=test@example.com sender_ip=127.0.0.127')
+        desc = self.message.get_props_description(['msgid'])
+        self.assertEqual(desc, 'msgid=test')
+        desc = self.message.get_props_description(['msgid', 'sender', 'rcpt_count'])
+        self.assertEqual(desc, 'msgid=test sender=test@example.com rcpt_count=3')
+        desc = self.message.get_props_description(['msgid', 'sender', 'rcpt_count'], ', ')
+        self.assertEqual(desc, 'msgid=test, sender=test@example.com, rcpt_count=3')

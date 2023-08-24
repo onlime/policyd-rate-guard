@@ -5,7 +5,7 @@ class Handler:
 
     request = {}
 
-    def __init__(self, conn, addr, conf, logger, db):
+    def __init__(self, conn: object, addr: str, conf: object, logger: object, db: object):
         self.conn = conn
         self.addr = addr
         self.conf = conf
@@ -59,12 +59,12 @@ class Handler:
 
         # Create response
         if blocked:
-            self.logger.warning('handler.py - Message from %s blocked', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
+            self.logger.warning('handler.py - Message BLOCKED: %s', message.get_props_description())
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
             if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
                 self.logger.debug('handler.py - Quota limit reached for %s, notifying sender via webhook!', message.sender)
         else:
-            self.logger.info('handler.py - Message from %s accepted', message.sender) # TODO: More information (msgid, recipient_count, sender, from_addr, sender_ip, etc.)
+            self.logger.info('handler.py - Message ACCEPTED: %s', message.get_props_description())
             self.send_response('OK')
 
         self.conn.close()
