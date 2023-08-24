@@ -4,6 +4,27 @@ A slick sender rate limit policy daemon for Postfix, written in Python.
 
 ©2023 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
 
+## Features
+
+Actually, PolicydRateGuard is just a super simple Postfix policy daemon with only one purpose: Limit senders by messages/recipients sent.
+
+But let me name some features that make it stand out from other solutions:
+
+- **Super easy Postfix integration** using `check_policy_service` in `smtpd_data_restrictions`
+- Set **individual sender (SASL username) quotas**
+- Limit senders to **number of recipients** per time period
+- Set your own time period (usually 24hrs) by resetting the counters via Systemd timer (or cronjob)
+- Stores both **message and recipient counters** in database (`ratelimits` table)
+- Stores **detailed information for all sent messages** (`msgid, sender, rcpt_count, blocked, from_addr, client ip, client hostname`) in database (`messages` table)
+- **Logs detailed message information to Syslog** (using `LOG_MAIL` facility, so the logs end up in `mail.log`)
+- **Maximum failure safety:** On any unexpected exception, the daemon still replies with a `DUNNO` action, so that the mail is not getting rejected by Postfix. This is done both on Postfix integration side and application exception handling side.
+- **Block action message** `"Rate limit reached, retry later."` can be configured.
+- Lots of configuration params via a simple `.env` 
+- **Tuned for high performance**, using network or unix sockets, and threading.
+- **Secure setup**, nothing running under `root`, only on `postfix` user.
+- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Pyton virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
+- A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
+
 ## Production INSTALL
 
 ### Requirements
@@ -63,6 +84,19 @@ $ systemctl enable policyd-rate-guard.service # Enable the daemon to start on bo
 $ systemctl enable policyd-rate-guard-cleanup.timer # Enable the cleanup timer
 ```
 
+It's recommended to enable `SYSLOG` logging on production in `.env`:
+
+```ini
+SYSLOG=True
+```
+
+On any configuration changes, restart `policyd-rate-guard` and make sure it's running:
+
+```bash
+$ systemctl restart policyd-rate-guard
+$ systemctl status policyd-rate-guard
+```
+
 ### Configure Postfix
 
 We recommend to integrate PolicydRateGuard directly into Postfix using the [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) restriction in [`smtpd_data_restrictions`](https://www.postfix.org/postconf.5.html#smtpd_data_restrictions).
@@ -120,6 +154,8 @@ For production, we recommend to start by copying `.env.example` and then fine-tu
 ```bash
 $ cp .env.example .env
 ```
+
+> **NOTE:** Minimally, you should set `DB_PASSWORD`, and maybe enable `SYSLOG` logging. For all the other config params it's usually fine to stick with the defaults.
 
 ## Development
 
