@@ -97,20 +97,6 @@ class Ratelimit:
             return True
         return False
     
-    def reset_quota(self):
-        """Reset quota"""
-        self.logger.debug('ratelimit.py - Resetting quota for %s', self.sender)
-        if self.quota != self.quota_reset:
-            self.quota = self.quota_reset
-            self.changed = True
-
-    def reset_counters(self):
-        """Reset counters"""
-        self.logger.debug('ratelimit.py - Resetting counters for %s', self.sender)
-        self.msg_counter = 0
-        self.rcpt_counter = 0
-        self.changed = True
-
     @staticmethod
     def find(sender: str, db: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
@@ -138,29 +124,6 @@ class Ratelimit:
             logger,
         )
     
-    # @staticmethod
-    # def get_all(db: object, logger: object, conf: object) -> list:
-    #     cursor = db.cursor()
-    #     cursor.execute('SELECT * from `ratelimits`')
-    #     results = cursor.fetchall()
-    #     ratelimits = []
-    #     for result in results:
-    #         ratelimit = Ratelimit(
-    #             result['sender'],
-    #             result['id'],
-    #             result['quota'],
-    #             result['quota_reset'],
-    #             result['quota_locked'],
-    #             result['msg_counter'],
-    #             result['rcpt_counter'],
-    #             db,
-    #             conf,
-    #             logger,
-    #         )
-    #         ratelimits.append(ratelimit)
-    #     logger.debug('ratelimit.py - Found %i ratelimits', len(ratelimits))
-    #     return ratelimits
-
     @staticmethod
     def reset_all_counters(db: object, logger: object):
         """Reset all ratelimit counters"""

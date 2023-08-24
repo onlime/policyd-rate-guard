@@ -19,11 +19,6 @@ class TestRatelimit(unittest.TestCase):
         self.assertEqual(ratelimit.quota, 1000)
         self.assertEqual(ratelimit.rcpt_counter, 0)
 
-    # def test_get_all(self) -> None:
-    #     ratelimits = Ratelimit.get_all(self.db, self.logger, self.conf)
-    #     self.assertEqual(type(ratelimits).__name__, 'list')
-    #     self.assertEqual(type(ratelimits[0]).__name__, 'Ratelimit')
-
     def test_add_msg(self) -> None:
         ratelimit = Ratelimit.find('test@example.com', self.db, self.logger, self.conf)
         msg_counter_old = ratelimit.msg_counter
@@ -52,23 +47,6 @@ class TestRatelimit(unittest.TestCase):
         ratelimit.rcpt_counter = 1001
         over_quota = ratelimit.check_over_quota()
         self.assertTrue(over_quota)
-
-    def test_reset_quota(self) -> None:
-        ratelimit = Ratelimit.find('test@example.com', self.db, self.logger, self.conf)
-        ratelimit.quota_reset = 1234
-        ratelimit.quota = 5000
-        ratelimit.reset_quota()
-        self.assertEqual(ratelimit.quota, ratelimit.quota_reset)
-        self.assertTrue(ratelimit.changed)
-
-    def test_reset_counters(self) -> None:
-        ratelimit = Ratelimit.find('test@example.com', self.db, self.logger, self.conf)
-        ratelimit.rcpt_counter = 1000
-        ratelimit.msg_counter = 1000
-        ratelimit.reset_counters()
-        self.assertEqual(ratelimit.rcpt_counter, 0)
-        self.assertEqual(ratelimit.msg_counter, 0)
-        self.assertTrue(ratelimit.changed)
 
     def test_store(self) -> None:
         ratelimit = Ratelimit.find('test@example.com', self.db, self.logger, self.conf)
