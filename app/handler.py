@@ -39,18 +39,18 @@ class Handler:
 
         # Handle message
         message = Message(
-            self.request['sasl_username'],
-            self.request['client_address'],
-            self.request['client_name'],
-            self.request['recipient_count'],
-            self.request['queue_id'],
-            self.request['sender'],
-            self.request.get('recipient'),
-            self.request.get('cc_address'),
-            self.request.get('bcc_address'),
-            self.db,
-            self.conf,
-            self.logger
+            msgid=self.request['queue_id'],
+            sender=self.request['sasl_username'],
+            client_address=self.request['client_address'],
+            client_name=self.request['client_name'],
+            rcpt_count=self.request['recipient_count'],
+            from_addr=self.request['sender'],
+            to_addr=self.request.get('recipient'),
+            cc_addr=self.request.get('cc_address'),
+            bcc_addr=self.request.get('bcc_address'),
+            db=self.db,
+            conf=self.conf,
+            logger=self.logger
         )
         message.get_ratelimit()
         was_blocked = message.is_blocked()

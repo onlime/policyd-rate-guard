@@ -4,10 +4,10 @@
 CREATE TABLE `messages` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `ratelimit_id` bigint unsigned DEFAULT NULL,
+  `msgid` varchar(255) DEFAULT NULL COMMENT 'message ID',
   `sender` varchar(255) NOT NULL COMMENT 'sender address (SASL username)',
   `rcpt_count` int NOT NULL COMMENT 'number of recipients',
   `blocked` tinyint(1) NOT NULL COMMENT 'message was blocked due to reached quota',
-  `msgid` varchar(255) DEFAULT NULL COMMENT 'message ID',
   `from_addr` varchar(255) DEFAULT NULL COMMENT 'from address',
   `to_addr` text DEFAULT NULL COMMENT 'to address(es)',
   `cc_addr` text DEFAULT NULL COMMENT 'Cc address(es)',

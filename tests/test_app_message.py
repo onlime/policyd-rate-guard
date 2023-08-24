@@ -13,11 +13,11 @@ class TestMessage(unittest.TestCase):
         self.logger = get_logger(self.conf)
         self.db = connect_database(self.conf)
         self.message = Message(
+            'TEST1234567',
             'test@example.com',
             '172.19.0.2',
             'unknown',
             3,
-            'TEST1234567',
             'test@example.com',
             'to_test@example.com',
             'cc_test@example.com',

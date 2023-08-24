@@ -4,11 +4,11 @@ class Message:
 
     def __init__(
         self,
+        msgid: str,
         sender: str,
         client_address: str,
         client_name: str,
         rcpt_count: int,
-        msgid: str,
         from_addr: str = None,
         to_addr: str = None,
         cc_addr: str = None,
@@ -17,11 +17,11 @@ class Message:
         conf: object = None,
         logger: object = None,
     ) -> None:
+        self.msgid = msgid
         self.sender = sender
         self.client_address = client_address
         self.client_name = client_name
         self.rcpt_count = rcpt_count
-        self.msgid = msgid
         self.from_addr = from_addr
         self.to_addr = to_addr
         self.cc_addr = cc_addr
@@ -35,13 +35,13 @@ class Message:
         """Store message in database"""
         self.logger.debug('message.py - Storing message')
         self.cursor.execute(
-            'INSERT INTO `messages` (`ratelimit_id`, `sender`, `rcpt_count`, `blocked`, `msgid`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+            'INSERT INTO `messages` (`ratelimit_id`, `msgid`, `sender`, `rcpt_count`, `blocked`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
                 self.ratelimit.get_id(),
+                self.msgid,
                 self.sender,
                 self.rcpt_count,
                 self.blocked,
-                self.msgid,
                 self.from_addr,
                 self.to_addr,
                 self.cc_addr,
