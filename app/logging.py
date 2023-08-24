@@ -7,7 +7,7 @@ def get_logger(conf: Config):
     logger = logging.getLogger('policyd-rate-guard')
     logger.setLevel(getattr(logging, conf.get('LOG_LEVEL', 'INFO').upper(), logging.INFO))
     if conf.get('SYSLOG', False):
-        formatter = logging.Formatter('%(name)s[%(thread)d]: %(levelname)s %(message)s')
+        formatter = logging.Formatter('%(name)s[%(process)d]: %(levelname)s %(message)s')
         syslog = logging.handlers.SysLogHandler(
             # workaround for Docker container: address=('localhost', 514),
             address='/dev/log',
