@@ -13,9 +13,9 @@ def connect_database(conf):
 def connect_pymysql(conf, backend):
     return backend.connect(
         host=conf.get('DB_HOST', 'localhost'),
-        user=conf.get('DB_USER', 'root'),
+        user=conf.get('DB_USER', 'policyd-rate-guard'),
         password=conf.get('DB_PASSWORD', ''),
-        database=conf.get('DB_DATABASE', 'test'),
+        database=conf.get('DB_DATABASE', 'policyd-rate-guard'),
         port=int(conf.get('DB_PORT', 3306)),
         cursorclass=backend.cursors.DictCursor
     )

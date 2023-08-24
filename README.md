@@ -1,10 +1,20 @@
 # PolicydRateGuard
 
-## Production Install
+A slick sender rate limit policy daemon for Postfix, written in Python.
 
-### Prerequisites
+©2023 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
 
-You need a running MySQL/MariaDB server and a running Postfix server with SASL auth to use this daemon.
+## Production INSTALL
+
+### Requirements
+
+You need a running MySQL/MariaDB server and a running Postfix server with SASL auth to use this daemon. It might work under lower versions, but it was tested under the following:
+
+- Postfix 3.5+
+- MySQL 8.0+
+- Python 3.9+
+
+In addition to MySQL/MariaDB, it also supports Sqlite3, but this is currently untested.
 
 ### Setup
 
@@ -21,7 +31,7 @@ mysql> GRANT ALL ON `policyd-rate-guard`.* TO `policyd-rate-guard`@localhost;
 
 ```bash
 $ cd /opt
-$ git clone https://gitlab.onlime.ch/onlime/policyd-rate-guard.git
+$ git clone https://github.com/onlime/policyd-rate-guard.git
 ```
 
 3. Create a virtualenv and install the requirements:
@@ -56,19 +66,60 @@ $ systemctl enable policyd-rate-guard-cleanup.timer # Enable the cleanup timer
 
 ### Configure Postfix
 
-We recommend to integrate PolicydRateGuard directly into Postfix using the [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) restriction in [`smtpd_data_restrictions`](https://www.postfix.org/postconf.5.html#smtpd_data_restrictions):
+We recommend to integrate PolicydRateGuard directly into Postfix using the [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) restriction in [`smtpd_data_restrictions`](https://www.postfix.org/postconf.5.html#smtpd_data_restrictions).
 
-```ini
+`/etc/postfix/main.cf`:
+
+```
 smtpd_data_restrictions =
         reject_unauth_pipelining,
-        check_policy_service inet:127.0.0.1:10033,
+        check_policy_service { inet:127.0.0.1:10033, default_action=DUNNO },
         permit 
 ```
+
+> **IMPORTANT:** We strongly recommend the advanced policy client configuration (supported since Postfix 3.0), using above syntax with **default action `DUNNO`**, instead of just using `check_policy_service inet:127.0.0.1:10033`.
+>
+> It ensures that if RateGuardPolicyd becomes unavailable for any reason, Postfix will ignore it and keep accepting mail as if the rule was not there. RateGuardPolicyd should be considered a "non-critical" policy service and you should use some monitoring solution to ensure it is always running as expected.
+
+> **NOTE:** You may use `unix:rateguard/policyd` instead of `inet:127.0.0.1:10033` if you have configured RateGuardPolicyd to use a unix socket (`SOCKET="/var/spool/postfix/rateguard/policyd"` environment variable).
 
 Make sure to reload Postfix after this change:
 
 ```bash
 $ systemctl reload postfix
+```
+
+## Configuration
+
+PolicydRateGuard can be fully configured through environment variables in `.env`. The following are supported:
+
+- `DB_DRIVER`
+  The database driver to use, either `pymysql` or `sqlite3`. [PyMySQL](https://pypi.org/project/pymysql/) is a pure-Python MySQL client library, based on [PEP 249](https://peps.python.org/pep-0249/). It's greatly recommended to stick with this driver, as PolicydRateGuard is currently only tested under MySQL using this driver. The default is `pymysql`.
+- `DB_HOST`
+  The database hostname. Defaults to `localhost`.
+- `DB_PORT`
+  The database port. Defaults to `3306`.
+- `DB_USER`
+  The database username. Defaults to `policyd-rate-guard`.
+- `DB_PASSWORD`
+  The database password. Defaults to `""`.
+- `DB_DATABASE`
+  The database name. Defaults to `policyd-rate-guard` (for `DB_DRIVER=pymsql`) or `:memory:` (for `DB_DRIVER=sqlite3`).
+- `SOCKET`
+  The socket to bind to. Can be a path to an unix socket or a couple [ip, port]. The default is `"127.0.0.1,10033"`. If you prefer using a unix socket, the recommended path is `"/var/spool/postfix/rateguard/policyd"`. PolicydRateGuard will try to create the parent directory and chown it if it do not exists.
+- `QUOTA`
+  The default quota for a user. Defaults to `1000`.
+- `ACTION_TEXT_BLOCKED`
+  Here you can put a custom message to be shown to a sender who is over his ratelimit. Defaults to `"Rate limit reached, retry later."`.
+- `LOG_LEVEL`
+  Set the level of the logger. Possible values: `DEBUG, INFO, WARNING, ERROR, CRITICAL`. Defaults to `INFO`.
+- `SYSLOG`
+  Send logs to syslog. Possible values: `True` or `False`. Defaults to `False`
+
+For production, we recommend to start by copying `.env.example` and then fine-tune your `.env`:
+
+```bash
+$ cp .env.example .env
 ```
 
 ## Development
@@ -191,3 +242,24 @@ The migration will be placed in `database/migrations` directory. After having wr
 (venv)$ yoyo apply
 ```
 
+## TODO
+
+Planned features (coming soon):
+
+- [ ] **Sentry** integration for exception reporting
+- [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
+- [ ] **Ansible role** for easy production deployment
+
+## Credits
+
+**[PolicydRateGuard](https://github.com/onlime/policyd-rate-guard)** is the official successor of [ratelimit-policyd](https://github.com/onlime/ratelimit-policyd) which was running rock-solid for the last 10yrs, but suffered the fact that it was built on a shitty scripting language, formerly known as Perl. We consider the switch to Python a huge step up that will ease further development and make you feel at home.
+
+It was greatly inspired by [policyd-rate-limit](https://github.com/nitmir/policyd-rate-limit) (by [@nitmir](https://github.com/nitmir)). PolicydRateGuard has a different feature-set and a much simpler codebase, but thing like the daemonizing logic were taken from policyd-rate-limit.
+
+## Authors
+
+Created with ❤️ by [Martin Wittwer (Wittwer IT Services)](https://www.wittwer-it.ch/) and [Philip Iezzi (Onlime GmbH)](https://www.onlime.ch/).
+
+## License
+
+This package is licenced under the [GPL-3.0 license](LICENSE) however support is more than welcome.
