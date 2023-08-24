@@ -1,5 +1,5 @@
 [Unit]
-Description=Service for PolicydRateGuard clan up job
+Description=Service for PolicydRateGuard cleanup job
 
 [Service]
 Type=oneshot

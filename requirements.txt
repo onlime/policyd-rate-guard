@@ -1,3 +1,4 @@
-yoyo-migrations==8.2.*
-python-dotenv==1.0.*
+cryptography==41.0.*
 PyMySQL==1.1.*
+python-dotenv==1.0.*
+yoyo-migrations==8.2.*

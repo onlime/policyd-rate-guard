@@ -51,9 +51,7 @@ $ . venv/bin/activate
 4. Copy the Systemd service files to `/etc/systemd/system/`:
 
 ```bash
-$ cp deployment/systemd_daemon.service /etc/systemd/system/policyd-rate-guard.service
-$ cp deployment/systemd_cleanup.service /etc/systemd/system/policyd-rate-guard-cleanup.service
-$ cp deployment/systemd_cleanup.timer /etc/systemd/system/policyd-rate-guard-cleanup.timer
+$ cp deployment/systemd/* /etc/systemd/system/
 ```
 
 5. Enable and start the Systemd services:
