@@ -14,9 +14,10 @@ class TestMessage(unittest.TestCase):
         self.db = connect_database(self.conf)
         self.message = Message(
             'test@example.com',
-            '127.0.0.127',
+            '172.19.0.2',
+            'unknown',
             3,
-            'test',
+            'TEST1234567',
             'test@example.com',
             'to_test@example.com',
             'cc_test@example.com',
@@ -58,19 +59,19 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(self.message.blocked, True)
 
     def test_store(self) -> None:
-        old_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('test',))
+        old_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567',))
         self.message.get_ratelimit()
         self.message.is_blocked()
         self.message.store()
-        new_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('test',))
+        new_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567',))
         self.assertEqual(new_count, old_count + 1)
 
     def test_get_props_description(self) -> None:
         desc = self.message.get_props_description()
-        self.assertEqual(desc, 'msgid=test sender=test@example.com rcpt_count=3 from_addr=test@example.com sender_ip=127.0.0.127')
+        self.assertEqual(desc, 'msgid=TEST1234567 sender=test@example.com rcpt_count=3 from_addr=test@example.com client_address=172.19.0.2 client_name=unknown')
         desc = self.message.get_props_description(['msgid'])
-        self.assertEqual(desc, 'msgid=test')
+        self.assertEqual(desc, 'msgid=TEST1234567')
         desc = self.message.get_props_description(['msgid', 'sender', 'rcpt_count'])
-        self.assertEqual(desc, 'msgid=test sender=test@example.com rcpt_count=3')
+        self.assertEqual(desc, 'msgid=TEST1234567 sender=test@example.com rcpt_count=3')
         desc = self.message.get_props_description(['msgid', 'sender', 'rcpt_count'], ', ')
-        self.assertEqual(desc, 'msgid=test, sender=test@example.com, rcpt_count=3')
+        self.assertEqual(desc, 'msgid=TEST1234567, sender=test@example.com, rcpt_count=3')

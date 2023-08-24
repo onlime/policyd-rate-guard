@@ -23,6 +23,7 @@ To run the daemon in production, follow this:
 1. Prepare MySQL database `policyd-rate-guard` and user `policyd-rate-guard`:
 
 ```sql
+mysql> CREATE DATABASE `policyd-rate-guard`;
 mysql> CREATE USER `policyd-rate-guard`@localhost IDENTIFIED BY 'Pa55w0rd';
 mysql> GRANT ALL ON `policyd-rate-guard`.* TO `policyd-rate-guard`@localhost;
 ```

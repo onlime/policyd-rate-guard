@@ -15,7 +15,7 @@ class Handler:
             self.handle()
         except Exception as e: # pragma: no cover
             self.logger.exception('handler.py - Unhandled Exception: %s', e)
-            self.send_response('OK')
+            self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
             self.conn.close()
             # raise e # TODO: Integrate sentry-sdk, see #1
 
@@ -41,6 +41,7 @@ class Handler:
         message = Message(
             self.request['sasl_username'],
             self.request['client_address'],
+            self.request['client_name'],
             self.request['recipient_count'],
             self.request['queue_id'],
             self.request['sender'],
@@ -57,15 +58,32 @@ class Handler:
         blocked = message.is_blocked() # ... and make sure we check for blocked after having raised the counter.
         message.store()
 
+        # Detailed log message in the following format:
+        # XXXXXXXXXX: client=unknown[8.8.8.8], sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
+        log_message = '{}: client={}[{}], sasl_method={}, sasl_username={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
+            message.msgid,
+            message.client_name,
+            message.client_address,
+            self.request['sasl_method'], # currently not stored in Message object or `messages` table
+            message.sender,
+            message.rcpt_count,
+            message.ratelimit.rcpt_counter,
+            message.ratelimit.quota,
+            'BLOCKED' if blocked else 'ACCEPTED',
+            ' (QUOTA_LIMIT_REACHED)' if blocked and not was_blocked else ''
+        )
+
         # Create response
         if blocked:
             self.logger.warning('handler.py - Message BLOCKED: %s', message.get_props_description())
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
             if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
                 self.logger.debug('handler.py - Quota limit reached for %s, notifying sender via webhook!', message.sender)
+            self.logger.warning(log_message)
         else:
             self.logger.info('handler.py - Message ACCEPTED: %s', message.get_props_description())
             self.send_response('OK')
+            self.logger.info(log_message)
 
         self.conn.close()
 

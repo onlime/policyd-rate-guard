@@ -5,8 +5,9 @@ class Message:
     def __init__(
         self,
         sender: str,
-        sender_ip: str,
-        recipient_count: int,
+        client_address: str,
+        client_name: str,
+        rcpt_count: int,
         msgid: str,
         from_addr: str = None,
         to_addr: str = None,
@@ -17,8 +18,9 @@ class Message:
         logger: object = None,
     ) -> None:
         self.sender = sender
-        self.sender_ip = sender_ip
-        self.rcpt_count = recipient_count
+        self.client_address = client_address
+        self.client_name = client_name
+        self.rcpt_count = rcpt_count
         self.msgid = msgid
         self.from_addr = from_addr
         self.to_addr = to_addr
@@ -33,11 +35,10 @@ class Message:
         """Store message in database"""
         self.logger.debug('message.py - Storing message')
         self.cursor.execute(
-            'INSERT INTO `messages` (`ratelimit_id`, `sender`, `sender_ip`, `rcpt_count`, `blocked`, `msgid`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+            'INSERT INTO `messages` (`ratelimit_id`, `sender`, `rcpt_count`, `blocked`, `msgid`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
                 self.ratelimit.get_id(),
                 self.sender,
-                self.sender_ip,
                 self.rcpt_count,
                 self.blocked,
                 self.msgid,
@@ -45,6 +46,8 @@ class Message:
                 self.to_addr,
                 self.cc_addr,
                 self.bcc_addr,
+                self.client_address,
+                self.client_name,
             )
         )
         self.db.commit()
@@ -71,5 +74,5 @@ class Message:
         self.blocked = False
         return False
 
-    def get_props_description(self, props: list = ['msgid', 'sender', 'rcpt_count', 'from_addr', 'sender_ip'], separator: str = ' '):
+    def get_props_description(self, props: list = ['msgid', 'sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'], separator: str = ' '):
         return separator.join(f"{name}={getattr(self, name)}" for name in props)
