@@ -245,6 +245,7 @@ The migration will be placed in `database/migrations` directory. After having wr
 
 Planned features (coming soon):
 
+- [ ] Define **Syslog facility** `LOG_MAIL`, **ident** `policyd-rate-guard`, and additionally log to `/var/log/policyd-rate-guard.log`
 - [ ] **Sentry** integration for exception reporting
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
 - [ ] **Ansible role** for easy production deployment
