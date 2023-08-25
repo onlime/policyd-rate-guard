@@ -25,6 +25,8 @@ class Daemon:
                 dsn=sentry_dsn,
                 environment=self.conf.get('SENTRY_ENVIRONMENT', 'dev'),
             )
+            # In addition to (auto-detected) server_name, provide FQDN as tag
+            sentry_sdk.set_tag('fqdn', socket.getfqdn())
 
     def run(self) -> None:
         """Run server"""
