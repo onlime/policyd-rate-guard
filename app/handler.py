@@ -17,7 +17,6 @@ class Handler:
             self.logger.exception('handler.py - Unhandled Exception: %s', e)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
             self.conn.close()
-            # raise e # TODO: Integrate sentry-sdk, see #1
 
     def handle(self):
         """Handle request"""
