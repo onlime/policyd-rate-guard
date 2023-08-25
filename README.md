@@ -272,6 +272,34 @@ $ . venv/bin/activate
 
 > Make sure to always run the tests inside your venv!
 
+### Configure Sentry SDK
+
+Sentry integration can be both used in your development environment and on production.
+
+1. Create new project `policyd-rate-guard` on [Sentry](https://sentry.io/)
+2. Copy-paste your Sentry project DSN into your `.env` (and/or `.env.docker`, `.env.test`)
+3. done.
+
+On a development `.env.docker` you should enable Sentry by commenting out those lines:
+
+```ini
+SENTRY_DSN=https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX
+SENTRY_ENVIRONMENT=docker
+```
+
+On production, use the same DSN and configure it in `.env`:
+
+```ini
+SENTRY_DSN=https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX
+SENTRY_ENVIRONMENT=prod
+```
+
+**Verify:** One way to verify your setup is by intentionally causing an error that breaks the application. Raise an unhandled Python exception by inserting a divide by zero expression anywhere in the application code (e.g. somewhere at the end of `Handler.handle()` method):
+
+```python
+division_by_zero = 1 / 0
+```
+
 ### Create DB migrations
 
 In venv, use the [`yoyo new`](https://ollycope.com/software/yoyo/latest/#yoyo-new) command to create a new migration:
