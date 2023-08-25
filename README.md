@@ -147,7 +147,11 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
   Here you can put a custom message to be shown to a sender who is over his ratelimit. Defaults to `"Rate limit reached, retry later."`.
 - `LOG_LEVEL`
   Set the level of the logger. Possible values: `DEBUG, INFO, WARNING, ERROR, CRITICAL`. Defaults to `INFO`.
-- `SYSLOG`
+- `LOG_FILE`
+  Set a logfile path, e.g. `/var/log/policyd-rate-guard/policyd-rate-guard.log`. This can be used in addition to enabling `SYSLOG` and/or `LOG_CONSOLE`, to log into a separate log file. Defaults to `None` (commented out).
+- `LOG_CONSOLE` (bool)
+  Send logs to console (on `stderr`). This can be used in addition to enabling `LOG_FILE` and/or `SYSLOG`. Possible values: `True` or `False`. Defaults to `False`.
+- `SYSLOG` (bool)
   Send logs to syslog. Possible values: `True` or `False`. Defaults to `False`
 
 For production, we recommend to start by copying `.env.example` and then fine-tune your `.env`:
@@ -286,6 +290,8 @@ Planned features (coming soon):
 - [ ] **Sentry** integration for exception reporting
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
 - [ ] **Ansible role** for easy production deployment
+- [ ] CI: **Github action** for testing
+- [ ] Publish to PyPI
 
 ## Credits
 
