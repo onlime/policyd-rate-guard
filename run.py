@@ -1,4 +1,5 @@
 import os
+import sentry_sdk
 import socket
 import threading
 from app.conf import Config
@@ -14,7 +15,16 @@ class Daemon:
         self.db = connect_database(self.conf)
         # TODO: Improve socket configuration parsing
         self.socket_conf = self.conf.get_array('SOCKET', '127.0.0.1,10033')
+        self.init_sentry()
         self.run()
+
+    def init_sentry(self) -> None:
+        sentry_dsn = self.conf.get('SENTRY_DSN')
+        if sentry_dsn:
+            sentry_sdk.init(
+                dsn=sentry_dsn,
+                environment=self.conf.get('SENTRY_ENVIRONMENT', 'dev'),
+            )
 
     def run(self) -> None:
         """Run server"""

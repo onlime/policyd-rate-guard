@@ -152,7 +152,11 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
 - `LOG_CONSOLE` (bool)
   Send logs to console (on `stderr`). This can be used in addition to enabling `LOG_FILE` and/or `SYSLOG`. Possible values: `True` or `False`. Defaults to `False`.
 - `SYSLOG` (bool)
-  Send logs to syslog. Possible values: `True` or `False`. Defaults to `False`
+  Send logs to syslog. Possible values: `True` or `False`. Defaults to `False`.
+- `SENTRY_DSN`
+  Your Sentry DSN in the following form: `https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX`. Defaults to `None` (commented out).
+- `SENTRY_ENVIRONMENT`
+  Sentry environment. Suggested values: `dev` or `prod`, but can be any custom string. Defaults to `dev`.
 
 For production, we recommend to start by copying `.env.example` and then fine-tune your `.env`:
 
@@ -286,8 +290,8 @@ The migration will be placed in `database/migrations` directory. After having wr
 
 Planned features (coming soon):
 
-- [ ] Define **Syslog facility** `LOG_MAIL`, **ident** `policyd-rate-guard`, and additionally log to `/var/log/policyd-rate-guard.log`
-- [ ] **Sentry** integration for exception reporting
+- [x] Define **Syslog facility** `LOG_MAIL`, **ident** `policyd-rate-guard`, and additionally log to `/var/log/policyd-rate-guard.log`
+- [x] **Sentry** integration for exception reporting
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
 - [ ] **Ansible role** for easy production deployment
 - [ ] CI: **Github action** for testing
