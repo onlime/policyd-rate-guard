@@ -4,6 +4,7 @@ class Handler:
     """Handle request"""
 
     request = {}
+    data = ''
 
     def __init__(self, conn: object, addr: str, conf: object, logger: object, db: object):
         self.conn = conn
@@ -15,18 +16,19 @@ class Handler:
             self.handle()
         except Exception as e: # pragma: no cover
             self.logger.exception('handler.py - Unhandled Exception: %s', e)
+            self.logger.warning('handler.py - Received DATA: %s', self.data)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
             self.conn.close()
 
     def handle(self):
         """Handle request"""
         # Read data
-        data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
-        if not data:
+        self.data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
+        if not self.data:
             raise Exception('No data received')
-        self.logger.debug('handler.py - Received data: %s', data)
+        self.logger.debug('handler.py - Received data: %s', self.data)
         # Parse data
-        for line in data.split("\n"): # TODO: How to get subject, cc, bcc?
+        for line in self.data.split("\n"): # TODO: How to get subject, cc, bcc?
             line = line.strip()
             try:
                 key, value = line.split(u'=', 1)
