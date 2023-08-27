@@ -142,8 +142,8 @@ class Ratelimit:
         """Reset all ratelimit counters"""
         logger.debug('ratelimit.py - Reset all counters')
         cursor = db.cursor()
-        # reset all counters
-        cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0')
+        # reset all counters, but don't change updated_at timestamp
+        cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0, `updated_at` = `updated_at`')
         # only reset quota if it is not locked
-        cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset` WHERE `quota_locked` = 0')
+        cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset`, `updated_at` = `updated_at` WHERE `quota_locked` = 0')
         db.commit()
