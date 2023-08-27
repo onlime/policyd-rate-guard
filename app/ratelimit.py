@@ -10,6 +10,8 @@ class Ratelimit:
         quota_locked: bool = False,
         msg_counter: int = 0,
         rcpt_counter: int = 0,
+        msg_total: int = 0,
+        rcpt_total: int = 0,
         db: object = None,
         conf: object = None,
         logger: object = None,
@@ -21,6 +23,8 @@ class Ratelimit:
         self.quota_locked = quota_locked
         self.msg_counter = msg_counter
         self.rcpt_counter = rcpt_counter
+        self.msg_total = msg_total
+        self.rcpt_total = rcpt_total
         self.db = db
         self.cursor = db.cursor()
         self.conf = conf
@@ -43,14 +47,17 @@ class Ratelimit:
         """Store new ratelimit in database"""
         self.logger.debug('ratelimit.py - Storing ratelimit')
         self.cursor.execute(
-            'INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`) VALUES (%s, %s, %s, %s, %s, %s)',
+            """INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`, `msg_total`, `rcpt_total`)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
             (
                 self.sender,
                 self.quota,
                 self.quota_reset,
                 self.quota_locked,
                 self.msg_counter,
-                self.rcpt_counter
+                self.rcpt_counter,
+                self.msg_total,
+                self.rcpt_total,
             )
         )
         self.id = self.cursor.lastrowid
@@ -61,12 +68,14 @@ class Ratelimit:
         """Update ratelimit in database"""
         self.logger.debug('ratelimit.py - Updating ratelimit')
         self.cursor.execute(
-            'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s WHERE `id` = %s',
+            'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s, `msg_total` = %s, `rcpt_total` = %s WHERE `id` = %s',
             (
                 self.quota,
                 self.msg_counter,
                 self.rcpt_counter,
-                self.id
+                self.msg_total,
+                self.rcpt_total,
+                self.id,
             )
         )
         self.db.commit()
@@ -81,12 +90,14 @@ class Ratelimit:
         """Add message to ratelimit"""
         self.logger.debug('ratelimit.py - Adding message to ratelimit for %s', self.sender)
         self.msg_counter += 1
+        self.msg_total += 1
         self.changed = True
 
     def add_rcpt(self, count: int):
         """Add recipient to ratelimit"""
         self.logger.debug('ratelimit.py - Adding recipients to ratelimit for %s: %i', self.sender, count)
         self.rcpt_counter += count
+        self.rcpt_total += count
         self.changed = True
 
     def check_over_quota(self) -> bool:
@@ -119,6 +130,8 @@ class Ratelimit:
             result['quota_locked'],
             result['msg_counter'],
             result['rcpt_counter'],
+            result['msg_total'],
+            result['rcpt_total'],
             db,
             conf,
             logger,

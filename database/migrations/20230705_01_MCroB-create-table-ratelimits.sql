@@ -9,6 +9,8 @@ CREATE TABLE `ratelimits` (
   `quota_locked` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'prevent recipient quota override by user (Airpane)',
   `msg_counter` int unsigned NOT NULL DEFAULT '0' COMMENT 'current message counter',
   `rcpt_counter` int unsigned NOT NULL DEFAULT '0' COMMENT 'current recipient counter',
+  -- `msg_total` int unsigned NOT NULL DEFAULT '0' COMMENT 'total message counter (never reset)',
+  -- `rcpt_total` int unsigned NOT NULL DEFAULT '0' COMMENT 'total recipient counter (never reset)',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

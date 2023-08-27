@@ -14,6 +14,7 @@ But let me name some features that make it stand out from other solutions:
 - Set **individual sender (SASL username) quotas**
 - Limit senders to **number of recipients** per time period
 - Set your own time period (usually 24hrs) by resetting the counters via Systemd timer (or cronjob)
+- Keeps totals of all messages/recipients sent for each sender (SASL username)
 - Stores both **message and recipient counters** in database (`ratelimits` table)
 - Stores **detailed information for all sent messages** (`msgid, sender, rcpt_count, blocked, from_addr, client ip, client hostname`) in database (`messages` table)
 - **Logs detailed message information to Syslog** (using `LOG_MAIL` facility, so the logs end up in `mail.log`)
