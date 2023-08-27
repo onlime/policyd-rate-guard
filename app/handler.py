@@ -38,8 +38,8 @@ class Handler:
             except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
                 pass
 
-        # Break if sasl_username is empty (e.g. on incoming mail on port 25)
-        if not self.request['sasl_username']:
+        # Break no sasl_username was found (e.g. on incoming mail on port 25)
+        if 'sasl_username' not in self.request:
             self.logger.debug('handler.py - sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
             self.conn.close()
