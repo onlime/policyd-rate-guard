@@ -38,10 +38,17 @@ class Handler:
             except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
                 pass
 
+        # Break if sasl_username is empty (e.g. on incoming mail on port 25)
+        if not self.request['sasl_username']:
+            self.logger.debug('handler.py - sasl_username is empty, accepting message and reply with DUNNO')
+            self.send_response('DUNNO')
+            self.conn.close()
+            return
+
         # Handle message
         message = Message(
             msgid=self.request['queue_id'],
-            sender=self.request['sasl_username'],
+            sender=self.request['sasl_username'] or '_NO_SASL_' + self.request['sender'],
             client_address=self.request['client_address'],
             client_name=self.request['client_name'],
             rcpt_count=self.request['recipient_count'],
