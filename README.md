@@ -13,7 +13,9 @@ But let me name some features that make it stand out from other solutions:
 - **Super easy Postfix integration** using `check_policy_service` in `smtpd_data_restrictions`
 - Set **individual sender (SASL username) quotas**
 - Limit senders to **number of recipients** per time period
-- Set your own time period (usually 24hrs) by resetting the counters via Systemd timer (or cronjob)
+- Automatically fills `ratelimits` table with new senders (SASL username) upon first email sent
+- Set your own time period (usually 24hrs) by resetting the counters via Systemd cleanup timer (or cronjob)
+- Continues to raise counters (`msg_counter`, `rcpt_counter`) even in over quota state, so you know if a sender keeps retrying/spamming.
 - Keeps totals of all messages/recipients sent for each sender (SASL username)
 - Stores both **message and recipient counters** in database (`ratelimits` table)
 - Stores **detailed information for all sent messages** (`msgid, sender, rcpt_count, blocked, from_addr, client ip, client hostname`) in database (`messages` table)
