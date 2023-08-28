@@ -25,10 +25,31 @@ But let me name some features that make it stand out from other solutions:
 - Lots of configuration params via a simple `.env` 
 - **Tuned for high performance**, using network or unix sockets, and threading.
 - **Secure setup**, nothing running under `root`, only on `postfix` user.
-- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Pyton virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
+- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
+- Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
 - A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
 
 ## Production INSTALL
+
+> [!IMPORTANT]  
+> We provide an **Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard)** for a simple automated installation on a Debian mailserver. So instead of following the **Setup** instructions below, you could run:
+>
+> ```bash
+> $ ansible-galaxy install onlime.policyd_rate_guard
+> ```
+>
+> Then create some `policyd-rate-guard.yml` playbook like e.g.:
+> ```yaml
+> - hosts: smtphosts
+>   roles:
+>     - role: onlime.policyd_rate_guard
+>       policyd_mysql_pass: '{{ vault_policyd_mysql_pass }}'
+> ```
+>
+> And then deploy like this:
+> ```bash
+> $ ansible-playbook policyd-rate-guard.yml
+> ```
 
 ### Requirements
 
@@ -42,7 +63,10 @@ In addition to MySQL/MariaDB, it also supports Sqlite3, but this is currently un
 
 ### Setup
 
-To run the daemon in production, follow this:
+To setup PolicydRateGuard and run the daemon in production, follow this:
+
+> [!NOTE]  
+> Remember, there's an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for all this, if you don't like it the manual way!
 
 1. Prepare MySQL database `policyd-rate-guard` and user `policyd-rate-guard`:
 
@@ -324,8 +348,8 @@ Planned features (coming soon):
 
 - [x] Define **Syslog facility** `LOG_MAIL`, **ident** `policyd-rate-guard`, and additionally log to `/var/log/policyd-rate-guard.log`
 - [x] **Sentry** integration for exception reporting
+- [x] **Ansible role** for easy production deployment
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
-- [ ] **Ansible role** for easy production deployment
 - [ ] CI: **Github action** for testing
 - [ ] Publish to PyPI
 
