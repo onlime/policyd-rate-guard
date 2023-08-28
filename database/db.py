@@ -10,7 +10,7 @@ def connect_database(conf):
     return getattr(sys.modules[__name__], method)(conf, backend)
 
 
-def connect_pymysql(conf, backend):
+def connect_pymysql(conf: object, backend: object):
     return backend.connect(
         host=conf.get('DB_HOST', 'localhost'),
         user=conf.get('DB_USER', 'policyd-rate-guard'),
@@ -20,7 +20,7 @@ def connect_pymysql(conf, backend):
         cursorclass=backend.cursors.DictCursor
     )
 
-def connect_sqlite3(conf, backend):
+def connect_sqlite3(conf: object, backend: object):
     connection = backend.connect(conf.get('DB_DATABASE', ':memory:'))
     # https://docs.python.org/3/library/sqlite3.html#sqlite3.Row
     connection.row_factory = backend.Row

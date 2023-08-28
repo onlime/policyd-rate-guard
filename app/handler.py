@@ -22,6 +22,11 @@ class Handler:
 
     def handle(self):
         """Handle request"""
+
+        # PyMySQL: Ensure the db connection is alive
+        if self.conf.get('DB_DRIVER', 'pymysql').lower() == 'pymysql':
+            self.db.ping(reconnect=True)
+
         # Read data
         self.data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
         if not self.data:
