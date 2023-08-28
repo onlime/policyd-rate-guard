@@ -52,19 +52,21 @@ class Daemon:
             except OSError:
                 if os.path.exists(socket_conf[0]): # pragma: no cover
                     raise
-            self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-            self.socket.bind(socket_conf[0])
+            self.bind_socket(socket.AF_UNIX, socket_conf[0])
             os.chmod(socket_conf[0], 0o666)
         elif ':' in socket_conf[0]:
-            self.socket = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-            self.socket.bind((socket_conf[0], int(socket_conf[1])))
+            self.bind_socket(socket.AF_INET6, (socket_conf[0], int(socket_conf[1])))
         elif '.' in socket_conf[0]:
-            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.socket.bind((socket_conf[0], int(socket_conf[1])))
+            self.bind_socket(socket.AF_INET, (socket_conf[0], int(socket_conf[1])))
         else:
             raise ValueError('Invalid socket configuration')
-        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.listen(5)
+
+    def bind_socket(self, family: int, address):
+        """Bind socket"""
+        self.socket = socket.socket(family, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.socket.bind(address)
 
     def close_socket(self) -> None:
         """Close socket"""
