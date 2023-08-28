@@ -72,9 +72,10 @@ $ . venv/bin/activate
 (venv)$ cp .env.example .env # & Adjust the settings
 ```
 
-4. Copy the Systemd service files to `/etc/systemd/system/`:
+4. Install logrotation config and copy the Systemd service files to `/etc/systemd/system/`:
 
 ```bash
+$ cp development/logrotate.d/* /etc/logrotate.d/
 $ cp deployment/systemd/* /etc/systemd/system/
 ```
 
