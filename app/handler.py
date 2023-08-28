@@ -61,7 +61,7 @@ class Handler:
             client_address=request['client_address'],
             client_name=request['client_name'],
             rcpt_count=request['recipient_count'],
-            from_addr=request['sender'],
+            from_addr=request.get('sender'),
             to_addr=request.get('recipient'),
             cc_addr=request.get('cc_address'),
             bcc_addr=request.get('bcc_address'),
