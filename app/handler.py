@@ -73,13 +73,14 @@ class Handler:
 
         # Detailed log message in the following format:
         # TEST1234567: client=unknown[8.8.8.8], sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
-        log_message = '{}: client={}[{}], sasl_method={}, sasl_username={}, from={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
+        log_message = '{}: client={}[{}], sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
             message.msgid,
             message.client_name,
             message.client_address,
             request['sasl_method'], # currently not stored in Message object or `messages` table
             message.sender,
             message.from_addr,
+            message.to_addr,
             message.rcpt_count,
             message.ratelimit.rcpt_counter,
             message.ratelimit.quota,
