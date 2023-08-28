@@ -151,6 +151,31 @@ Make sure to reload Postfix after this change:
 $ systemctl reload postfix
 ```
 
+### Upgrade
+
+You can run an upgrade with the Ansible Galaxy playbook you have created above, using our [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) role:
+
+```bash
+$ ansible-playbook policyd-rate-guard.yml
+```
+
+Or you might as well just do a `git pull` upgrade directly on your production mail server:
+
+```bash
+$ cd /opt/policyd-rate-guard
+$ git pull
+
+# And if anything in database/migrations or requirements.txt has changed:
+$ . venv/bin/activate
+(venv)$ pip install -r requirements.txt
+(venv)$ yoyo apply
+
+# Finally restart the service
+$ systemctl restart policyd-rate-guard.service
+```
+
+You don't need to worry about any short downtime for this upgrade process, as it will only take some seconds, and anyway the daemon can be gone for a while without any impact on your Postfix deliverability, as long as you have set it up correctly using the `default_action=DUNNO` trick (see «Configure Postfix» section above).
+
 ## Configuration
 
 PolicydRateGuard can be fully configured through environment variables in `.env`. The following are supported:
