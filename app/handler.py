@@ -45,6 +45,10 @@ class Handler:
             self.send_response('DUNNO')
             self.conn.close()
             return
+        
+        # Temp debugging of message data without recipient (e.g. on multiple To: addresses)
+        if not request.get('recipient'):
+            self.logger.warning('handler.py - Received DATA with no recipient: %s', self.data)
 
         # PyMySQL: Ensure the db connection is alive
         if self.conf.get('DB_DRIVER', 'pymysql').lower() == 'pymysql':
