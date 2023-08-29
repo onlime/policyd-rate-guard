@@ -377,9 +377,9 @@ Planned features (coming soon):
 - [x] Define **Syslog facility** `LOG_MAIL`, **ident** `policyd-rate-guard`, and additionally log to `/var/log/policyd-rate-guard.log`
 - [x] **Sentry** integration for exception reporting
 - [x] **Ansible role** for easy production deployment
+- [x] **Github workflow** for CI/testing
+- [ ] **Publish package** to [PyPI](https://pypi.org/)
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
-- [ ] CI: **Github action** for testing
-- [ ] Publish to PyPI
 
 ## Credits 🙏
 
