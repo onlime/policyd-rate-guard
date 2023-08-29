@@ -50,5 +50,5 @@ jobs:
         yoyo -c yoyo.ini.github apply
     - name: Run tests
       run: |
-        cp .env.github .env
+        cp .env.github .env.test
         python -m unittest tests/test_*.py
