@@ -1,0 +1,5 @@
+[DEFAULT]
+sources = database/migrations
+database = mysql://root:test@localhost:3306/test
+batch_mode = on
+verbosity = 2
