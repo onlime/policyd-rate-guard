@@ -4,7 +4,7 @@ A slick sender rate limit policy daemon for Postfix, written in Python.
 
 ©2023 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
 
-## Features
+## Features ✨
 
 Actually, PolicydRateGuard is just a super simple Postfix policy daemon with only one purpose: Limit senders by messages/recipients sent.
 
@@ -29,7 +29,7 @@ But let me name some features that make it stand out from other solutions:
 - Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
 - A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
 
-## Production INSTALL
+## Production INSTALL 🚀
 
 > [!IMPORTANT]  
 > We provide an **Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard)** for a simple automated installation on a Debian mailserver. So instead of following the **Setup** instructions below, you could run:
@@ -176,7 +176,7 @@ $ systemctl restart policyd-rate-guard.service
 
 You don't need to worry about any short downtime for this upgrade process, as it will only take some seconds, and anyway the daemon can be gone for a while without any impact on your Postfix deliverability, as long as you have set it up correctly using the `default_action=DUNNO` trick (see «Configure Postfix» section above).
 
-## Configuration
+## Configuration ⚙️
 
 PolicydRateGuard can be fully configured through environment variables in `.env`. The following are supported:
 
@@ -219,7 +219,7 @@ $ cp .env.example .env
 
 > **NOTE:** Minimally, you should set `DB_PASSWORD`, and maybe enable `SYSLOG` logging. For all the other config params it's usually fine to stick with the defaults.
 
-## Development
+## Development 👩‍💻
 
 ### Initial setup
 
@@ -367,7 +367,7 @@ The migration will be placed in `database/migrations` directory. After having wr
 (venv)$ yoyo apply
 ```
 
-## TODO
+## TODO ✅
 
 Planned features (coming soon):
 
@@ -378,7 +378,7 @@ Planned features (coming soon):
 - [ ] CI: **Github action** for testing
 - [ ] Publish to PyPI
 
-## Credits
+## Credits 🙏
 
 **[PolicydRateGuard](https://github.com/onlime/policyd-rate-guard)** is the official successor of [ratelimit-policyd](https://github.com/onlime/ratelimit-policyd) which was running rock-solid for the last 10yrs, but suffered the fact that it was built on a shitty scripting language, formerly known as Perl. We consider the switch to Python a huge step up that will ease further development and make you feel at home.
 
@@ -386,7 +386,7 @@ It was greatly inspired by [policyd-rate-limit](https://github.com/nitmir/policy
 
 ## Authors
 
-Created with ❤️ by [Martin Wittwer (Wittwer IT Services)](https://www.wittwer-it.ch/) and [Philip Iezzi (Onlime GmbH)](https://www.onlime.ch/).
+Made with ❤️ by [Martin Wittwer (Wittwer IT Services)](https://www.wittwer-it.ch/) and [Philip Iezzi (Onlime GmbH)](https://www.onlime.ch/).
 
 ## License
 
