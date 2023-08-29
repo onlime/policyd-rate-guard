@@ -1,3 +1,6 @@
+![PolicydRateGuard logo](./docs/logo-dark.png#gh-dark-mode-only)
+![PolicydRateGuard logo](./docs/logo-light.png#gh-light-mode-only)
+
 # PolicydRateGuard
 
 A slick sender rate limit policy daemon for Postfix, written in Python.
