@@ -3,6 +3,9 @@
 
 # PolicydRateGuard
 
+[![CI status](https://github.com/onlime/policyd-rate-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/onlime/policyd-rate-guard/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/onlime/policyd-rate-guard)](https://github.com/onlime/policyd-rate-guard/releases)
+
 A slick sender rate limit policy daemon for Postfix, written in Python.
 
 ©2023 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
