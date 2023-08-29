@@ -1,0 +1,34 @@
+version: '3.2'
+
+services:
+  # Database service to set up a testing/development environment
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: test
+      # MYSQL_RANDOM_ROOT_PASSWORD: 'yes'
+      MYSQL_DATABASE: policyd-rate-guard
+      MYSQL_USER: policyd-rate-guard
+      MYSQL_PASSWORD: Example1234
+      MYSQL_INITDB_SKIP_TZINFO: 'yes'
+    command: --default-time-zone='+02:00'
+    ports:
+      - 13312:3306
+  policyd:
+    build: .
+    restart: always
+    ports:
+      - 10033:10033
+    environment:
+      QUOTA: 5
+  postfix:
+    image: danilsmirnov/postfix
+    restart: always
+    ports:
+      - '1025:25'
+    volumes:
+      - ./docker-postfix/main.cf:/etc/postfix/main.cf
+    environment:
+      MAIL_DOMAIN: example.com
+      SMTP_USER: 'test01:Example1234,test02:Example1234,test03:Example1234'

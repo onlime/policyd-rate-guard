@@ -1,0 +1,14 @@
+/var/log/policyd-rate-guard/policyd-rate-guard.log {
+	rotate 365
+	daily
+	dateext
+	missingok
+	notifempty
+	compress
+	# delaycompress
+	create 644 postfix postfix
+	sharedscripts
+	postrotate
+		if [ -f /bin/systemctl ] ; then systemctl restart policyd-rate-guard.service ; else service policyd-rate-guard restart >/dev/null 2>&1 ; fi || true
+	endscript
+}

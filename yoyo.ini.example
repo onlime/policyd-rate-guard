@@ -1,0 +1,5 @@
+[DEFAULT]
+sources = database/migrations
+database = mysql://policyd-rate-guard:Pa55w0rd@localhost:3306/policyd-rate-guard
+batch_mode = on
+verbosity = 0
