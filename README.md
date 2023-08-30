@@ -147,9 +147,9 @@ smtpd_data_restrictions =
 
 > **IMPORTANT:** We strongly recommend the advanced policy client configuration (supported since Postfix 3.0), using above syntax with **default action `DUNNO`**, instead of just using `check_policy_service inet:127.0.0.1:10033`.
 >
-> It ensures that if RateGuardPolicyd becomes unavailable for any reason, Postfix will ignore it and keep accepting mail as if the rule was not there. RateGuardPolicyd should be considered a "non-critical" policy service and you should use some monitoring solution to ensure it is always running as expected.
+> It ensures that if PolicydRateGuard becomes unavailable for any reason, Postfix will ignore it and keep accepting mail as if the rule was not there. PolicydRateGuard should be considered a "non-critical" policy service and you should use some monitoring solution to ensure it is always running as expected.
 
-> **NOTE:** You may use `unix:rateguard/policyd` instead of `inet:127.0.0.1:10033` if you have configured RateGuardPolicyd to use a unix socket (`SOCKET="/var/spool/postfix/rateguard/policyd"` environment variable).
+> **NOTE:** You may use `unix:rateguard/policyd` instead of `inet:127.0.0.1:10033` if you have configured PolicydRateGuard to use a unix socket (`SOCKET="/var/spool/postfix/rateguard/policyd"` environment variable).
 
 Make sure to reload Postfix after this change:
 
@@ -159,7 +159,7 @@ $ systemctl reload postfix
 
 > [!IMPORTANT]
 > In Postfix, when multiple recipients are specified in the `To:` field of an email, the Postfix policy delegation protocol (the `check_policy_service` action in this case) doesn't include each individual recipient separately by default. Instead, it sends a single `recipient=` line with an empty value to indicate that there are recipients but doesn't list them individually.
-> There is no way for PolicydRateLimit to register any recipients, neither in the log message nor in the `messages` db table, if a message was sent to multiple email addresses in `To:`. Also, there is no way to register any recipients from `Cc:` and/or `Bcc:` headers.
+> There is no way for **PolicydRateGuard** to register any recipients, neither in the log message nor in the `messages` db table, if a message was sent to multiple email addresses in `To:`. Also, there is no way to register any recipients from `Cc:` and/or `Bcc:` headers.
 >
 > But aside this little drawback, Postfix integration using [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) is simply the best and probably the only way to go. Currently, this is the only supported way to configure it!
 
