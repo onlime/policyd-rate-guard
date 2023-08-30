@@ -40,7 +40,7 @@ class Handler:
                 pass
 
         # Break no sasl_username was found (e.g. on incoming mail on port 25)
-        if 'sasl_username' not in request:
+        if not request.get('sasl_username'):
             self.logger.debug('handler.py - sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
             self.conn.close()
