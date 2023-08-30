@@ -4,7 +4,8 @@
 
 **Added:**
 
-- Added `LOG_MSG_PREFIX` (boolean) environment variable which is enabled by default. Prefix all log messages with a prefix containing information about the calling filename, class, and function name, e.g. `ratelimit.py Ratelimit.update() - `. 
+- Added `LOG_MSG_PREFIX` (boolean) environment variable which is enabled by default. Prefix all log messages with a prefix containing information about the calling filename, class, and function name, e.g. `ratelimit.py Ratelimit.update() - `.
+- Always prepend log messages with message ID (Postfix `queue_id`) if available, independent from `LOG_MSG_PREFIX` feature being enabled/disabled.
 
 **Fixed:**
 

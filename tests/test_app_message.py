@@ -68,7 +68,7 @@ class TestMessage(unittest.TestCase):
 
     def test_get_props_description(self) -> None:
         desc = self.message.get_props_description()
-        self.assertEqual(desc, 'msgid=TEST1234567 sender=test@example.com rcpt_count=3 from_addr=test@example.com client_address=172.19.0.2 client_name=unknown')
+        self.assertEqual(desc, 'sender=test@example.com rcpt_count=3 from_addr=test@example.com client_address=172.19.0.2 client_name=unknown')
         desc = self.message.get_props_description(['msgid'])
         self.assertEqual(desc, 'msgid=TEST1234567')
         desc = self.message.get_props_description(['msgid', 'sender', 'rcpt_count'])

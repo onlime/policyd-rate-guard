@@ -74,5 +74,5 @@ class Message:
         self.blocked = False
         return False
 
-    def get_props_description(self, props: list = ['msgid', 'sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'], separator: str = ' '):
+    def get_props_description(self, props: list = ['sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'], separator: str = ' '):
         return separator.join(f"{name}={getattr(self, name)}" for name in props)

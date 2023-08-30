@@ -9,7 +9,7 @@ class Handler:
         self.conn = conn
         self.addr = addr
         self.conf = conf
-        self.logger = logger # TODO: Add msgid to logger
+        self.logger = logger
         self.db = db
         try:
             self.handle()
@@ -38,6 +38,9 @@ class Handler:
                     request[key] = value
             except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
                 pass
+
+        # Add msgid to logger
+        self.logger.msgid = request.get('queue_id')
 
         # Break no sasl_username was found (e.g. on incoming mail on port 25)
         if not request.get('sasl_username'):
@@ -77,8 +80,7 @@ class Handler:
 
         # Detailed log message in the following format:
         # TEST1234567: client=unknown[8.8.8.8], helo=myCLIENTPC, sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
-        log_message = '{}: client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
-            message.msgid,
+        log_message = 'client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
             message.client_name,
             message.client_address,
             request.get('helo_name'), # currently not stored in Message object or `messages` table
@@ -105,6 +107,7 @@ class Handler:
             self.send_response('OK')
             self.logger.info(log_message)
 
+        self.logger.msgid = None # Reset msgid in logger
         self.conn.close()
 
     def send_response(self, message: str = 'OK'):

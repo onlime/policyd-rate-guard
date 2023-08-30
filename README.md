@@ -209,7 +209,7 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
 - `LOG_FILE`
   Set a logfile path, e.g. `/var/log/policyd-rate-guard/policyd-rate-guard.log`. This can be used in addition to enabling `SYSLOG` and/or `LOG_CONSOLE`, to log into a separate log file. Defaults to `None` (commented out).
 - `LOG_MSG_PREFIX`
-  Prefix all log messages with a prefix containing information about the calling filename, class, and function name, e.g. `ratelimit.py Ratelimit.update() - `. Defaults to `True`.
+  Prefix all log messages with a prefix containing information about the calling filename, class, and function name, e.g. `ratelimit.py Ratelimit.update() - `. We recommend to disable this on a production deployment (as it's more kind of debug information that shouldn't bloat our logs). Defaults to `True`.
 - `LOG_CONSOLE` (bool)
   Send logs to console (on `stderr`). This can be used in addition to enabling `LOG_FILE` and/or `SYSLOG`. Possible values: `True` or `False`. Defaults to `False`.
 - `SYSLOG` (bool)

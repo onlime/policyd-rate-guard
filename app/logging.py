@@ -5,12 +5,22 @@ from app.conf import Config
 from os import path
 
 class PrefixedLogger(logging.Logger):
+    """Custom logger that prefixes messages with msgid, the filename, class and function name of the caller"""
+
+    msg_prefix = True
+    msgid = None
+
     def __init__(self, name, level=logging.NOTSET):
         super().__init__(name, level)
 
     def _log(self, level, msg, args, exc_info=None, extra=None, stack_info=False):
-        co_filename, co_class, co_function = self._get_caller_info()
-        prefix = f"{path.basename(co_filename)} {co_class}.{co_function}() - "
+        if self.msg_prefix:
+            co_filename, co_class, co_function = self._get_caller_info()
+            prefix = f"{path.basename(co_filename)} {co_class}.{co_function}() - "
+        else:
+            prefix = ''
+        if self.msgid:
+            prefix += f"{self.msgid}: "
         msg = prefix + msg
         super()._log(level, msg, args, exc_info, extra, stack_info)
 
@@ -60,10 +70,10 @@ def get_logger(conf: Config):
         log_handlers.append(syslog)
 
     # Set the custom logger class
-    if conf.get('LOG_MSG_PREFIX', True):
-        logging.setLoggerClass(PrefixedLogger)
+    logging.setLoggerClass(PrefixedLogger)
     logging.basicConfig(level=log_level, format=log_format, handlers=log_handlers)
     logger = logging.getLogger('policyd-rate-guard')
     logger.setLevel(log_level)
+    logger.msg_prefix = conf.get('LOG_MSG_PREFIX', True) # Enable/disable custom log message prefix feature
 
     return logger
