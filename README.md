@@ -38,7 +38,7 @@ But let me name some features that make it stand out from other solutions:
 ## Production INSTALL 🚀
 
 > [!IMPORTANT]  
-> We provide an **Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard)** for a simple automated installation on a Debian mailserver. So instead of following the **Setup** instructions below, you could run:
+> We provide an **[Ansible Galaxy](https://galaxy.ansible.com/onlime/policyd_rate_guard) role [`onlime.policyd_rate_guard`](https://github.com/onlime/ansible-role-policyd-rate-guard)** for a simple automated installation on a Debian mailserver. So instead of following the **Setup** instructions below, you could run:
 >
 > ```bash
 > $ ansible-galaxy install onlime.policyd_rate_guard
@@ -208,6 +208,8 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
   Set the level of the logger. Possible values: `DEBUG, INFO, WARNING, ERROR, CRITICAL`. Defaults to `INFO`.
 - `LOG_FILE`
   Set a logfile path, e.g. `/var/log/policyd-rate-guard/policyd-rate-guard.log`. This can be used in addition to enabling `SYSLOG` and/or `LOG_CONSOLE`, to log into a separate log file. Defaults to `None` (commented out).
+- `LOG_MSG_PREFIX`
+  Prefix all log messages with a prefix containing information about the calling filename, class, and function name, e.g. `ratelimit.py Ratelimit.update() - `. Defaults to `True`.
 - `LOG_CONSOLE` (bool)
   Send logs to console (on `stderr`). This can be used in addition to enabling `LOG_FILE` and/or `SYSLOG`. Possible values: `True` or `False`. Defaults to `False`.
 - `SYSLOG` (bool)

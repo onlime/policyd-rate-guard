@@ -33,7 +33,7 @@ class Message:
 
     def store(self):
         """Store message in database"""
-        self.logger.debug('message.py - Storing message')
+        self.logger.debug('Storing message')
         self.cursor.execute(
             'INSERT INTO `messages` (`ratelimit_id`, `msgid`, `sender`, `rcpt_count`, `blocked`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
             (
@@ -54,21 +54,21 @@ class Message:
 
     def get_ratelimit(self) -> None:
         """Get ratelimit for sender"""
-        self.logger.debug('message.py - Getting ratelimit for sender {}'.format(self.sender))
+        self.logger.debug('Getting ratelimit for sender {}'.format(self.sender))
         self.ratelimit = Ratelimit.find(self.sender, self.db, self.logger, self.conf)
     
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
-        self.logger.debug('message.py - Updating ratelimit counters for sender {}'.format(self.sender))
+        self.logger.debug('Updating ratelimit counters for sender {}'.format(self.sender))
         self.ratelimit.add_msg()
         self.ratelimit.add_rcpt(int(self.rcpt_count))
         self.ratelimit.store()
 
     def is_blocked(self) -> bool:
         """Check if sender is blocked"""
-        self.logger.debug('message.py - Checking if sender {} is blocked'.format(self.sender))
+        self.logger.debug('Checking if sender {} is blocked'.format(self.sender))
         if self.ratelimit.check_over_quota():
-            self.logger.debug('message.py - Sender {} is blocked'.format(self.sender))
+            self.logger.debug('Sender {} is blocked'.format(self.sender))
             self.blocked = True
             return True
         self.blocked = False

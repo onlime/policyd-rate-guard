@@ -13,7 +13,7 @@ class Cleaner:
 
     def cleanup(self) -> None:
         """Cleanup database"""
-        self.logger.debug('cleanup.py - Cleaning up database')
+        self.logger.debug('Cleaning up database')
         Ratelimit.reset_all_counters(self.db, self.logger)
 
 

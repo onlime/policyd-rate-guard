@@ -36,7 +36,7 @@ class Ratelimit:
     def store(self):
         """Store ratelimit in database"""
         if not self.changed:
-            self.logger.debug('ratelimit.py - Ratelimit not changed')
+            self.logger.debug('Ratelimit not changed')
             return
         if self.id is not None:
             self.update()
@@ -45,7 +45,7 @@ class Ratelimit:
 
     def store_new(self):
         """Store new ratelimit in database"""
-        self.logger.debug('ratelimit.py - Storing ratelimit')
+        self.logger.debug('Storing ratelimit')
         self.cursor.execute(
             """INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`, `msg_total`, `rcpt_total`)
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
@@ -66,7 +66,7 @@ class Ratelimit:
 
     def update(self):
         """Update ratelimit in database"""
-        self.logger.debug('ratelimit.py - Updating ratelimit')
+        self.logger.debug('Updating ratelimit')
         self.cursor.execute(
             'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s, `msg_total` = %s, `rcpt_total` = %s WHERE `id` = %s',
             (
@@ -83,28 +83,28 @@ class Ratelimit:
 
     def get_id(self) -> int:
         """Get id of ratelimit"""
-        self.logger.debug('ratelimit.py - Getting id of ratelimit for %s', self.sender)
+        self.logger.debug('Getting id of ratelimit for %s', self.sender)
         return self.id
 
     def add_msg(self):
         """Add message to ratelimit"""
-        self.logger.debug('ratelimit.py - Adding message to ratelimit for %s', self.sender)
+        self.logger.debug('Adding message to ratelimit for %s', self.sender)
         self.msg_counter += 1
         self.msg_total += 1
         self.changed = True
 
     def add_rcpt(self, count: int):
         """Add recipient to ratelimit"""
-        self.logger.debug('ratelimit.py - Adding recipients to ratelimit for %s: %i', self.sender, count)
+        self.logger.debug('Adding recipients to ratelimit for %s: %i', self.sender, count)
         self.rcpt_counter += count
         self.rcpt_total += count
         self.changed = True
 
     def check_over_quota(self) -> bool:
         """Check if ratelimit is over quota"""
-        self.logger.debug('ratelimit.py - Checking if ratelimit is over quota for %s', self.sender)
+        self.logger.debug('Checking if ratelimit is over quota for %s', self.sender)
         if self.rcpt_counter > self.quota or self.msg_counter > self.quota: # rcpt_counter should always be greater than msg_counter
-            self.logger.debug('ratelimit.py - Ratelimit is over quota for %s', self.sender)
+            self.logger.debug('Ratelimit is over quota for %s', self.sender)
             return True
         return False
     
@@ -112,16 +112,16 @@ class Ratelimit:
     def find(sender: str, db: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
         cursor = db.cursor()
-        logger.debug('ratelimit.py - Getting ratelimit for sender %s', sender)
+        logger.debug('Getting ratelimit for sender %s', sender)
         cursor.execute(
             'SELECT * FROM `ratelimits` WHERE `sender` = %s',
             (sender,)
         )
         result = cursor.fetchone()
         if result is None:
-            logger.debug('ratelimit.py - No ratelimit found for sender %s', sender)
+            logger.debug('No ratelimit found for sender %s', sender)
             return Ratelimit(sender, conf=conf, db=db, logger=logger)
-        logger.debug('ratelimit.py - Ratelimit found: %s', result)
+        logger.debug('Ratelimit found: %s', result)
         return Ratelimit(
             result['sender'],
             result['id'],
@@ -140,7 +140,7 @@ class Ratelimit:
     @staticmethod
     def reset_all_counters(db: object, logger: object):
         """Reset all ratelimit counters"""
-        logger.debug('ratelimit.py - Reset all counters')
+        logger.debug('Reset all counters')
         cursor = db.cursor()
         # reset all counters, but don't change updated_at timestamp
         cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0, `updated_at` = `updated_at`')

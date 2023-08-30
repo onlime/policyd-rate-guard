@@ -14,8 +14,8 @@ class Handler:
         try:
             self.handle()
         except Exception as e: # pragma: no cover
-            self.logger.exception('handler.py - Unhandled Exception: %s', e)
-            self.logger.warning('handler.py - Received DATA: %s', self.data)
+            self.logger.exception('Unhandled Exception: %s', e)
+            self.logger.warning('Received DATA: %s', self.data)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
             self.conn.close()
 
@@ -25,7 +25,7 @@ class Handler:
         self.data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
         if not self.data:
             raise Exception('No data received')
-        self.logger.debug('handler.py - Received data: %s', self.data)
+        self.logger.debug('Received data: %s', self.data)
 
         # Parse data
         request = {}
@@ -34,21 +34,21 @@ class Handler:
             try:
                 key, value = line.split(u'=', 1)
                 if value:
-                    self.logger.debug('handler.py - Received header: %s=%s', key, value)
+                    self.logger.debug('Received header: %s=%s', key, value)
                     request[key] = value
             except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
                 pass
 
         # Break no sasl_username was found (e.g. on incoming mail on port 25)
         if not request.get('sasl_username'):
-            self.logger.debug('handler.py - sasl_username is empty, accepting message and reply with DUNNO')
+            self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
             self.conn.close()
             return
         
         # Temp debugging of message data without recipient (e.g. on multiple To: addresses)
         # if not request.get('recipient'):
-        #     self.logger.warning('handler.py - Received DATA with no recipient: %s', self.data)
+        #     self.logger.warning('Received DATA with no recipient: %s', self.data)
 
         # PyMySQL: Ensure the db connection is alive
         if self.conf.get('DB_DRIVER', 'pymysql').lower() == 'pymysql':
@@ -95,13 +95,13 @@ class Handler:
 
         # Create response
         if blocked:
-            self.logger.warning('handler.py - Message BLOCKED: %s', message.get_props_description())
+            self.logger.warning('Message BLOCKED: %s', message.get_props_description())
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
             if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
-                self.logger.debug('handler.py - Quota limit reached for %s, notifying sender via webhook!', message.sender)
+                self.logger.debug('Quota limit reached for %s, notifying sender via webhook!', message.sender)
             self.logger.warning(log_message)
         else:
-            self.logger.debug('handler.py - Message ACCEPTED: %s', message.get_props_description())
+            self.logger.debug('Message ACCEPTED: %s', message.get_props_description())
             self.send_response('OK')
             self.logger.info(log_message)
 
@@ -111,5 +111,5 @@ class Handler:
         """Send response"""
         # actions return to postfix, see http://www.postfix.org/access.5.html for a list of actions.
         data = 'action={}\n\n'.format(message)
-        self.logger.debug('handler.py - Sending data: %s', data)
+        self.logger.debug('Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
