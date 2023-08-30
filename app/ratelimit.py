@@ -109,9 +109,8 @@ class Ratelimit:
         return False
     
     @staticmethod
-    def find(sender: str, db: object, logger: object, conf: object) -> object:
+    def find(sender: str, db: object, cursor: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
-        cursor = db.cursor()
         logger.debug('Getting ratelimit for sender %s', sender)
         cursor.execute(
             'SELECT * FROM `ratelimits` WHERE `sender` = %s',
@@ -120,7 +119,7 @@ class Ratelimit:
         result = cursor.fetchone()
         if result is None:
             logger.debug('No ratelimit found for sender %s', sender)
-            return Ratelimit(sender, conf=conf, db=db, logger=logger)
+            return Ratelimit(sender, db=db, conf=conf, logger=logger)
         logger.debug('Ratelimit found: %s', result)
         return Ratelimit(
             result['sender'],
