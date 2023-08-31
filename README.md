@@ -30,6 +30,7 @@ But let me name some features that make it stand out from other solutions:
 - **Block action message** `"Rate limit reached, retry later."` can be configured.
 - Lots of configuration params via a simple `.env` 
 - **Tuned for high performance**, using network or unix sockets, and threading.
+- A multi-threaded app that uses [DBUtils PooledDB (pooled_db)](https://github.com/WebwareForPython/DBUtils) for **robust and efficient DB connection handling**.
 - **Secure setup**, nothing running under `root`, only on `postfix` user.
 - A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
 - Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.

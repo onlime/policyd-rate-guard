@@ -1,13 +1,13 @@
 import unittest
 from app.conf import Config
-from app.db import connect_database
+from app.db import DbConnectionPool
 from cleanup import Cleaner
 
 class TestServer(unittest.TestCase):
 
     def setUp(self) -> None:
         self.conf = Config('.env.test')
-        self.db = connect_database(self.conf)
+        self.db = DbConnectionPool(self.conf).connection()
         self.cursor = self.db.cursor()
 
         self.cursor.execute('DELETE FROM `ratelimits`')

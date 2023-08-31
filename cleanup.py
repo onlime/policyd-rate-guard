@@ -1,6 +1,6 @@
 from app.conf import Config
 from app.logging import get_logger
-from app.db import connect_database
+from app.db import DbConnectionPool
 from app.ratelimit import Ratelimit
 
 class Cleaner:
@@ -8,7 +8,7 @@ class Cleaner:
     def __init__(self, conf: object = None) -> None:
         self.conf = conf or Config()
         self.logger = get_logger(self.conf)
-        self.db = connect_database(self.conf)
+        self.db = DbConnectionPool(self.conf).connection()
         self.cleanup()
 
     def cleanup(self) -> None:
