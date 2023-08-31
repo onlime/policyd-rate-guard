@@ -1,7 +1,7 @@
 from importlib import import_module
 import sys
 
-def connect_database(conf):
+def connect_database(conf: object):
     # TODO: Check if caching makes sense (only if simple possible)
     driver = conf.get('DB_DRIVER', 'pymysql')
     backend = import_module(driver)
@@ -21,7 +21,9 @@ def connect_pymysql(conf: object, backend: object):
     )
 
 def connect_sqlite3(conf: object, backend: object):
-    connection = backend.connect(conf.get('DB_DATABASE', ':memory:'))
+    connection = backend.connect(
+        database=conf.get('DB_DATABASE', ':memory:'),
+    )
     # https://docs.python.org/3/library/sqlite3.html#sqlite3.Row
     connection.row_factory = backend.Row
     return connection

@@ -1,9 +1,7 @@
 import unittest
-
 from app.message import Message
-
 from app.conf import Config
-from database.db import connect_database
+from app.db import connect_database
 from app.logging import get_logger
 
 class TestMessage(unittest.TestCase):

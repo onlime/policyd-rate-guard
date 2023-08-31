@@ -1,8 +1,6 @@
 import unittest
-
 from app.conf import Config
-
-from database.db import connect_database
+from app.db import connect_database
 
 class TestDatabase(unittest.TestCase):
 

@@ -1,5 +1,4 @@
 import unittest
-
 from app.conf import Config
 
 class TestConf(unittest.TestCase):

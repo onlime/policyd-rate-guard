@@ -1,6 +1,6 @@
 from app.conf import Config
 from app.logging import get_logger
-from database.db import connect_database
+from app.db import connect_database
 from app.ratelimit import Ratelimit
 
 class Cleaner:

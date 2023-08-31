@@ -1,8 +1,6 @@
 import unittest
-from time import sleep
-
 from app.conf import Config
-from database.db import connect_database
+from app.db import connect_database
 from cleanup import Cleaner
 
 class TestServer(unittest.TestCase):

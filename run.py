@@ -18,7 +18,7 @@ import threading
 from app.conf import Config
 from app.handler import Handler
 from app.logging import get_logger
-from database.db import connect_database
+from app.db import connect_database
 
 class Daemon:
 
