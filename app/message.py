@@ -55,7 +55,7 @@ class Message:
     def get_ratelimit(self) -> None:
         """Get ratelimit for sender"""
         self.logger.debug('Getting ratelimit for sender {}'.format(self.sender))
-        self.ratelimit = Ratelimit.find(self.sender, self.db, self.cursor, self.logger, self.conf)
+        self.ratelimit = Ratelimit.find(self.sender, self.db, self.logger, self.conf)
     
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
