@@ -112,6 +112,9 @@ class Ratelimit:
     def find(sender: str, db: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
         cursor = db.cursor()
+        if cursor is None:
+            logger.error('Could not get db.cursor() to find ratelimit for sender %s', sender)
+            return None
         logger.debug('Getting ratelimit for sender %s', sender)
         cursor.execute(
             'SELECT * FROM `ratelimits` WHERE `sender` = %s',

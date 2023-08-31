@@ -17,7 +17,6 @@ class Handler:
             self.logger.exception('Unhandled Exception: %s', e)
             self.logger.warning('Received DATA: %s', self.data)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
-            self.conn.close()
 
     def handle(self):
         """Handle request"""
@@ -46,7 +45,6 @@ class Handler:
         if not request.get('sasl_username'):
             self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
-            self.conn.close()
             return
         
         # Temp debugging of message data without recipient (e.g. on multiple To: addresses)
@@ -73,6 +71,12 @@ class Handler:
             logger=self.logger
         )
         message.get_ratelimit()
+        # TODO: Remove this workaround once we have fixed db connection issues (db.cursor() is None in Ratelimit.find()
+        if message.ratelimit is None:
+            self.logger.error('Could not get ratelimit for sender %s', message.sender)
+            self.logger.warning('Received DATA: %s', self.data)
+            self.send_response('DUNNO')
+            return
         was_blocked = message.is_blocked()
         message.update_ratelimit() # Always update counter, even if quota limit was already reached before (was_blocked)!
         blocked = message.is_blocked() # ... and make sure we check for blocked after having raised the counter.
@@ -98,17 +102,14 @@ class Handler:
         # Create response
         if blocked:
             self.logger.warning('Message BLOCKED: %s', message.get_props_description())
-            self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
             if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
                 self.logger.debug('Quota limit reached for %s, notifying sender via webhook!', message.sender)
             self.logger.warning(log_message)
+            self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
         else:
             self.logger.debug('Message ACCEPTED: %s', message.get_props_description())
-            self.send_response('OK')
             self.logger.info(log_message)
-
-        self.logger.msgid = None # Reset msgid in logger
-        self.conn.close()
+            self.send_response('OK')
 
     def send_response(self, message: str = 'OK'):
         """Send response"""
@@ -116,3 +117,5 @@ class Handler:
         data = 'action={}\n\n'.format(message)
         self.logger.debug('Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
+        self.conn.close()
+        self.logger.msgid = None # Reset msgid in logger
