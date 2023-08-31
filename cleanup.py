@@ -8,13 +8,13 @@ class Cleaner:
     def __init__(self, conf: object = None) -> None:
         self.conf = conf or Config()
         self.logger = get_logger(self.conf)
-        self.db = DbConnectionPool(self.conf).connection()
+        self.db_pool = DbConnectionPool(self.conf)
         self.cleanup()
 
     def cleanup(self) -> None:
         """Cleanup database"""
         self.logger.debug('Cleaning up database')
-        Ratelimit.reset_all_counters(self.db, self.logger)
+        Ratelimit.reset_all_counters(self.db_pool, self.logger)
 
 
 if __name__ == '__main__': # pragma: no cover
