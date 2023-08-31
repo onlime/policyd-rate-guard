@@ -113,4 +113,5 @@ class Handler:
         self.conn.close()
         self.logger.msgid = None # Reset msgid in logger
         # TODO: Do we need to close the cursor as well? (prior to closing the connection)
-        self.db.close() # Close database connection
+        if self.db:
+            self.db.close() # Close database connection
