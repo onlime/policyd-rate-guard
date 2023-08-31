@@ -3,6 +3,7 @@ from app.message import Message
 class Handler:
     """Handle request"""
 
+    db = None
     data = ''
 
     def __init__(self, conn: object, addr: str, conf: object, logger: object, db_pool: object):
@@ -113,5 +114,5 @@ class Handler:
         self.conn.close()
         self.logger.msgid = None # Reset msgid in logger
         # TODO: Do we need to close the cursor as well? (prior to closing the connection)
-        if self.db:
+        if self.db is not None:
             self.db.close() # Close database connection
