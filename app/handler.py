@@ -112,7 +112,12 @@ class Handler:
         self.logger.debug('Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
         self.conn.close()
+
+    def __del__(self):
+        """Destructor"""
         self.logger.msgid = None # Reset msgid in logger
         # TODO: Do we need to close the cursor as well? (prior to closing the connection)
         if self.db is not None:
             self.db.close() # Close database connection
+            self.db = None
+        self.logger.debug('Handler destroyed')

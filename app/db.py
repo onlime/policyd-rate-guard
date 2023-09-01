@@ -9,11 +9,11 @@ class DbConnectionPool:
 
         self.pool = PooledDB(
             creator=self.backend, # pymysql or sqlite3
-            mincached=0,
-            maxcached=10,
-            maxshared=10,
-            maxusage=10000,
-            # maxconnections=10,
+            mincached=int(conf.get('DB_POOL_MINCACHED', 0)),
+            maxcached=int(conf.get('DB_POOL_MAXCACHED', 10)),
+            maxshared=int(conf.get('DB_POOL_MAXSHARED', 10)),
+            maxusage=int(conf.get('DB_POOL_MAXUSAGE', 10000)),
+            # maxconnections=int(conf.get('DB_POOL_MAXCONNECTIONS', 20)),
             **db_config
         )
     
