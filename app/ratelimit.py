@@ -138,12 +138,18 @@ class Ratelimit:
         )
     
     @staticmethod
-    def reset_all_counters(db: object, logger: object):
+    def reset_all_counters(db_pool: object, logger: object):
         """Reset all ratelimit counters"""
         logger.debug('Reset all counters')
-        cursor = db.cursor()
-        # reset all counters, but don't change updated_at timestamp
-        cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0, `updated_at` = `updated_at`')
-        # only reset quota if it is not locked
-        cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset`, `updated_at` = `updated_at` WHERE `quota_locked` = 0')
-        db.commit()
+        db = db_pool.connection()
+        try:
+            # With DBUtils PooledDB, we need to explicitly start a transaction
+            db.begin()
+            cursor = db.cursor()
+            # reset all counters, but don't change updated_at timestamp
+            cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0, `updated_at` = `updated_at`')
+            # only reset quota if it is not locked
+            cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset`, `updated_at` = `updated_at` WHERE `quota_locked` = 0')
+            db.commit()
+        finally:
+            db.close()

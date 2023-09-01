@@ -1,9 +1,7 @@
 import unittest
 from unittest.mock import MagicMock
-
 from os import environ, path
 from socket import socket, AF_INET, AF_INET6, SOCK_STREAM
-
 from run import Daemon
 
 class TestServer(unittest.TestCase):

@@ -3,21 +3,21 @@ from app.message import Message
 class Handler:
     """Handle request"""
 
+    db = None
     data = ''
 
-    def __init__(self, conn: object, addr: str, conf: object, logger: object, db: object):
+    def __init__(self, conn: object, addr: str, conf: object, logger: object, db_pool: object):
         self.conn = conn
         self.addr = addr
         self.conf = conf
         self.logger = logger
-        self.db = db
+        self.db_pool = db_pool
         try:
             self.handle()
         except Exception as e: # pragma: no cover
             self.logger.exception('Unhandled Exception: %s', e)
             self.logger.warning('Received DATA: %s', self.data)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
-            self.conn.close()
 
     def handle(self):
         """Handle request"""
@@ -46,16 +46,14 @@ class Handler:
         if not request.get('sasl_username'):
             self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
-            self.conn.close()
             return
         
         # Temp debugging of message data without recipient (e.g. on multiple To: addresses)
         # if not request.get('recipient'):
         #     self.logger.warning('Received DATA with no recipient: %s', self.data)
 
-        # PyMySQL: Ensure the db connection is alive
-        if self.conf.get('DB_DRIVER', 'pymysql').lower() == 'pymysql':
-            self.db.ping(reconnect=True)
+        # Get database connection from DB pool
+        self.db = self.db_pool.connection()
 
         # Handle message
         message = Message(
@@ -98,21 +96,28 @@ class Handler:
         # Create response
         if blocked:
             self.logger.warning('Message BLOCKED: %s', message.get_props_description())
-            self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
             if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
                 self.logger.debug('Quota limit reached for %s, notifying sender via webhook!', message.sender)
             self.logger.warning(log_message)
+            self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
         else:
             self.logger.debug('Message ACCEPTED: %s', message.get_props_description())
-            self.send_response('OK')
             self.logger.info(log_message)
-
-        self.logger.msgid = None # Reset msgid in logger
-        self.conn.close()
+            self.send_response('OK')
 
     def send_response(self, message: str = 'OK'):
         """Send response"""
-        # actions return to postfix, see http://www.postfix.org/access.5.html for a list of actions.
+        # actions return to Postfix, see http://www.postfix.org/access.5.html for a list of actions.
         data = 'action={}\n\n'.format(message)
         self.logger.debug('Sending data: %s', data)
         self.conn.send(data.encode('utf-8'))
+        self.conn.close()
+
+    def __del__(self):
+        """Destructor"""
+        self.logger.msgid = None # Reset msgid in logger
+        # TODO: Do we need to close the cursor as well? (prior to closing the connection)
+        if self.db is not None:
+            self.db.close() # Close database connection
+            self.db = None
+        self.logger.debug('Handler destroyed')

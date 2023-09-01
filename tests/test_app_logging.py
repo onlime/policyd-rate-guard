@@ -1,7 +1,5 @@
 import unittest
-
 from app.conf import Config
-
 from app.logging import get_logger
 
 class TestAppLogging(unittest.TestCase):

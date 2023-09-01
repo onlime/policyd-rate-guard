@@ -1,9 +1,7 @@
 import unittest
-
 from app.message import Message
-
 from app.conf import Config
-from database.db import connect_database
+from app.db import DbConnectionPool
 from app.logging import get_logger
 
 class TestMessage(unittest.TestCase):
@@ -11,7 +9,7 @@ class TestMessage(unittest.TestCase):
     def setUp(self) -> None:
         self.conf = Config('.env.test')
         self.logger = get_logger(self.conf)
-        self.db = connect_database(self.conf)
+        self.db = DbConnectionPool(self.conf).connection()
         self.message = Message(
             'TEST1234567',
             'test@example.com',

@@ -18,14 +18,14 @@ import threading
 from app.conf import Config
 from app.handler import Handler
 from app.logging import get_logger
-from database.db import connect_database
+from app.db import DbConnectionPool
 
 class Daemon:
 
     def __init__(self) -> None:
         self.conf = Config()
         self.logger = get_logger(self.conf)
-        self.db = connect_database(self.conf)
+        self.db_pool = DbConnectionPool(self.conf)
         # TODO: Improve socket configuration parsing
         self.socket_conf = self.conf.get_array('SOCKET', '127.0.0.1,10033')
         self.init_sentry()
@@ -49,7 +49,7 @@ class Daemon:
                 conn, addr = self.socket.accept()
                 threading.Thread(
                     target=Handler,
-                    args=(conn, addr, self.conf, self.logger, self.db)
+                    args=(conn, addr, self.conf, self.logger, self.db_pool)
                 ).start()
             except KeyboardInterrupt:
                 break

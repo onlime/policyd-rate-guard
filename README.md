@@ -17,10 +17,11 @@ Actually, PolicydRateGuard is just a super simple Postfix policy daemon with onl
 But let me name some features that make it stand out from other solutions:
 
 - **Super easy Postfix integration** using `check_policy_service` in `smtpd_data_restrictions`
-- Set **individual sender (SASL username) quotas**
+- **Tuned for high performance**, using network or unix sockets, threading, and db connection pooling.
+- Set **individual sender (SASL username) quotas**, which can be both persistent or only for the current time period.
 - Limit senders to **number of recipients** per time period
 - Automatically fills `ratelimits` table with new senders (SASL username) upon first email sent
-- Set your own time period (usually 24hrs) by resetting the counters via Systemd cleanup timer (or cronjob)
+- Set your own **time period (usually 24hrs)** by resetting the counters via Systemd cleanup timer (or cronjob)
 - Continues to raise counters (`msg_counter`, `rcpt_counter`) even in over quota state, so you know if a sender keeps retrying/spamming.
 - Keeps totals of all messages/recipients sent for each sender (SASL username)
 - Stores both **message and recipient counters** in database (`ratelimits` table)
@@ -29,9 +30,10 @@ But let me name some features that make it stand out from other solutions:
 - **Maximum failure safety:** On any unexpected exception, the daemon still replies with a `DUNNO` action, so that the mail is not getting rejected by Postfix. This is done both on Postfix integration side and application exception handling side.
 - **Block action message** `"Rate limit reached, retry later."` can be configured.
 - Lots of configuration params via a simple `.env` 
-- **Tuned for high performance**, using network or unix sockets, and threading.
 - **Secure setup**, nothing running under `root`, only on `postfix` user.
-- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
+- A multi-threaded app that uses [DBUtils PooledDB (pooled_db)](https://github.com/WebwareForPython/DBUtils) for **robust and efficient DB connection handling**.
+- Can be used with any [DB-API 2 (PEP 249)](https://peps.python.org/pep-0249/) conformant database adapter (currently supported: PyMySQL, sqlite3)
+- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [DBUtils](https://webwareforpython.github.io/DBUtils/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
 - Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
 - A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
 
@@ -145,11 +147,12 @@ smtpd_data_restrictions =
         permit 
 ```
 
-> **IMPORTANT:** We strongly recommend the advanced policy client configuration (supported since Postfix 3.0), using above syntax with **default action `DUNNO`**, instead of just using `check_policy_service inet:127.0.0.1:10033`.
->
-> It ensures that if PolicydRateGuard becomes unavailable for any reason, Postfix will ignore it and keep accepting mail as if the rule was not there. PolicydRateGuard should be considered a "non-critical" policy service and you should use some monitoring solution to ensure it is always running as expected.
+**IMPORTANT:** We strongly recommend the advanced policy client configuration (supported since Postfix 3.0), using above syntax with **default action `DUNNO`**, instead of just using `check_policy_service inet:127.0.0.1:10033`.
 
-> **NOTE:** You may use `unix:rateguard/policyd` instead of `inet:127.0.0.1:10033` if you have configured PolicydRateGuard to use a unix socket (`SOCKET="/var/spool/postfix/rateguard/policyd"` environment variable).
+It ensures that if PolicydRateGuard becomes unavailable for any reason, Postfix will ignore it and keep accepting mail as if the rule was not there. PolicydRateGuard should be considered a "non-critical" policy service and you should use some monitoring solution to ensure it is always running as expected.
+
+> [!NOTE]
+> You may use `unix:rateguard/policyd` instead of `inet:127.0.0.1:10033` if you have configured PolicydRateGuard to use a unix socket (`SOCKET="/var/spool/postfix/rateguard/policyd"` environment variable).
 
 Make sure to reload Postfix after this change:
 
@@ -225,13 +228,21 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
 - `SENTRY_ENVIRONMENT`
   Sentry environment. Suggested values: `dev` or `prod`, but can be any custom string. Defaults to `dev`.
 
+You may also tune the database connection pooling by modifying the following environment variables (defaults are fine for most environments, and you'll find e detailed description in the [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) usage docs):
+
+- `DB_POOL_MINCACHED` (default: `0`)
+- `DB_POOL_MAXCACHED` (default: `10`
+- `DB_POOL_MAXSHARED` (default: `10`)
+- `DB_POOL_MAXUSAGE`  (default: `10000`)
+
 For production, we recommend to start by copying `.env.example` and then fine-tune your `.env`:
 
 ```bash
 $ cp .env.example .env
 ```
 
-> **NOTE:** Minimally, you should set `DB_PASSWORD`, and maybe enable `SYSLOG` logging. For all the other config params it's usually fine to stick with the defaults.
+> [!NOTE]
+> Minimally, you should set `DB_PASSWORD`, and maybe enable `SYSLOG` logging. For all the other config params it's usually fine to stick with the defaults.
 
 ## Development 👩‍💻
 
@@ -337,6 +348,7 @@ $ . venv/bin/activate
 (venv)$ ./tests.sh
 ```
 
+> [!IMPORTANT]
 > Make sure to always run the tests inside your venv!
 
 ### Configure Sentry SDK
@@ -389,8 +401,8 @@ Planned features (coming soon):
 - [x] **Sentry** integration for exception reporting
 - [x] **Ansible role** for easy production deployment
 - [x] **Github workflow** for CI/testing
-- [ ] **Publish package** to [PyPI](https://pypi.org/)
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
+- [ ] **Publish package** to [PyPI](https://pypi.org/) (Might need some restructuring. Any help greatly appreciated!)
 
 ## Credits 🙏
 
