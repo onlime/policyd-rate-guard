@@ -1,5 +1,21 @@
 # CHANGELOG
 
+## [v0.6.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.6.0) (2023-09-01)
+
+**Improved:**
+
+- Improved performance and stability by introducing database connection pooling, using [DBUtils PooledDB (pooled_db)](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db)
+- Moved logger and db cleanup code into destructor of `Handler`.
+- Refactored `database.db` to `app.db` to simplify project structure.
+
+**Added:**
+
+- Added environment variables `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED`, `DB_POOL_MAXSHARED`, `DB_POOL_MAXUSAGE` for db connection pooling fine-tuning.
+
+**Fixed:**
+
+- Fix `Lost connection to MySQL server during query ` and ``AttributeError: 'NoneType' object has no attribute 'read'` (on db cursor) connectivity issues by introducing connection pooling.
+
 ## [v0.5.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.5.1) (2023-08-30)
 
 **Added:**
@@ -9,7 +25,7 @@
 
 **Fixed:**
 
-- Fix `AttributeError: 'NoneType' object has no attribute 'read' in Ratelimit.find()` edge case where `sasl_username` was set in Postfix DATA but empty. We now bail out early if `sasl_username` either does not exist or is empty.
+- Fix edge case where `sasl_username` was set in Postfix DATA but empty. We now bail out early if `sasl_username` either does not exist or is empty.
 
 ## [v0.5.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.5.0) (2023-08-29)
 
