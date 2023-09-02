@@ -1,4 +1,4 @@
-from app.message import Message
+from .message import Message
 
 class Handler:
     """Handle request"""

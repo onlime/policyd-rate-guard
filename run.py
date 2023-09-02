@@ -60,19 +60,22 @@ class Daemon:
         socket_conf = self.socket_conf
         if len(socket_conf) == 1:
             # TODO: Create socket directory if it does not exist
+            socket_path = socket_conf[0]
             try:
-                os.remove(socket_conf[0])
+                os.remove(socket_path)
             except OSError:
-                if os.path.exists(socket_conf[0]): # pragma: no cover
+                if os.path.exists(socket_path): # pragma: no cover
                     raise
-            self.bind_socket(socket.AF_UNIX, socket_conf[0])
-            os.chmod(socket_conf[0], 0o666)
-        elif ':' in socket_conf[0]:
-            self.bind_socket(socket.AF_INET6, (socket_conf[0], int(socket_conf[1])))
-        elif '.' in socket_conf[0]:
-            self.bind_socket(socket.AF_INET, (socket_conf[0], int(socket_conf[1])))
+            self.bind_socket(socket.AF_UNIX, socket_path)
+            os.chmod(socket_path, 0o666)
         else:
-            raise ValueError('Invalid socket configuration')
+            host, port = socket_conf[0], int(socket_conf[1])
+            if ':' in host:
+                self.bind_socket(socket.AF_INET6, (host, port))
+            elif '.' in host:
+                self.bind_socket(socket.AF_INET, (host, port))
+            else:
+                raise ValueError('Invalid socket configuration')
         self.socket.listen(5)
 
     def bind_socket(self, family: int, address):

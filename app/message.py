@@ -1,4 +1,4 @@
-from app.ratelimit import Ratelimit
+from .ratelimit import Ratelimit
 
 class Message:
 
