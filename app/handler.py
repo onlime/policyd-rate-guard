@@ -27,17 +27,9 @@ class Handler:
             raise Exception('No data received')
         self.logger.debug('Received data: %s', self.data)
 
-        # Parse data
-        request = {}
-        for line in self.data.split("\n"): # TODO: How to get subject, cc, bcc?
-            line = line.strip()
-            try:
-                key, value = line.split(u'=', 1)
-                if value:
-                    self.logger.debug('Received header: %s=%s', key, value)
-                    request[key] = value
-            except ValueError: # Needed to ignore lines without "=" (e.g. the final two empty lines)
-                pass
+        # Parse data using a dictionary comprehension
+        request = { key: value for line in self.data.strip().split("\n") for key, value in [line.strip().split('=', 1)] if value }
+        self.logger.debug('Parsed request: %s', request)
 
         # Add msgid to logger
         self.logger.msgid = request.get('queue_id')
@@ -47,10 +39,6 @@ class Handler:
             self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
             self.send_response('DUNNO')
             return
-        
-        # Temp debugging of message data without recipient (e.g. on multiple To: addresses)
-        # if not request.get('recipient'):
-        #     self.logger.warning('Received DATA with no recipient: %s', self.data)
 
         # Get database connection from DB pool
         self.db = self.db_pool.connection()
