@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## [v0.6.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.6.1) (2023-09-06)
+
+**Improved:**
+
+- Code cleanup: Using relative imports.
+- Code cleanup: Simplified parsing of data using dict comprehension in `Handler`.
+- Refactoring: moved `PrefixedLogger` class into its own file.
+
+**Added:**
+
+- Database cleanup job now also purges old messages, if enabled through `MESSAGE_RETENTION` env var.
+- Introduced new environment variable `MESSAGE_RETENTION` to control number of days to keep messages in the database. Defaults to `0` (keep forever).
+
 ## [v0.6.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.6.0) (2023-09-01)
 
 **Improved:**

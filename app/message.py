@@ -76,3 +76,16 @@ class Message:
 
     def get_props_description(self, props: list = ['sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'], separator: str = ' '):
         return separator.join(f"{name}={getattr(self, name)}" for name in props)
+
+    @staticmethod
+    def purge_old_messages(db_pool: object, logger: object, days: int = 90) -> None:
+        """Purge old messages"""
+        logger.debug('Purge old messages')
+        db = db_pool.connection()
+        try:
+            deleted = db.cursor().execute('DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %s DAY)', (days,))
+            db.commit()
+            if deleted > 0:
+                logger.info('Deleted {} old messages (retention: {} days)'.format(deleted, days))
+        finally:
+            db.close()

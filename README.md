@@ -227,6 +227,8 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
   Your Sentry DSN in the following form: `https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX`. Defaults to `None` (commented out).
 - `SENTRY_ENVIRONMENT`
   Sentry environment. Suggested values: `dev` or `prod`, but can be any custom string. Defaults to `dev`.
+- `MESSAGE_RETENTION`
+  How many days to keep messages in the database. Defaults to `0` (never delete).
 
 You may also tune the database connection pooling by modifying the following environment variables (defaults are fine for most environments, and you'll find e detailed description in the [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) usage docs):
 
@@ -284,7 +286,7 @@ $ cp yoyo.ini.docker yoyo.ini # & Adjust the settings
 (venv)$ python3 run.py
 ```
 
-To cleanup (reset all counters and quotas) the database, run:
+To cleanup (reset all counters and quotas and purge old messages if `MESSAGE_RETENTION` is set) the database, run:
 
 ```bash
 (venv)$ python3 cleanup.py
@@ -401,6 +403,7 @@ Planned features (coming soon):
 - [x] **Sentry** integration for exception reporting
 - [x] **Ansible role** for easy production deployment
 - [x] **Github workflow** for CI/testing
+- [x] **Message retention**: Expire/purge old messages, configurable via env var `MESSAGE_RETENTION` (defaults to keep forever)
 - [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
 - [ ] **Publish package** to [PyPI](https://pypi.org/) (Might need some restructuring. Any help greatly appreciated!)
 
