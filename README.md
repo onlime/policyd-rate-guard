@@ -223,10 +223,6 @@ PolicydRateGuard can be fully configured through environment variables in `.env`
   Send logs to console (on `stderr`). This can be used in addition to enabling `LOG_FILE` and/or `SYSLOG`. Possible values: `True` or `False`. Defaults to `False`.
 - `SYSLOG` (bool)
   Send logs to syslog. Possible values: `True` or `False`. Defaults to `False`.
-- `SENTRY_DSN`
-  Your Sentry DSN in the following form: `https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX`. Defaults to `None` (commented out).
-- `SENTRY_ENVIRONMENT`
-  Sentry environment. Suggested values: `dev` or `prod`, but can be any custom string. Defaults to `dev`.
 - `MESSAGE_RETENTION`
   How many days to keep messages in the database. Defaults to `0` (never delete).
 
@@ -236,6 +232,19 @@ You may also tune the database connection pooling by modifying the following env
 - `DB_POOL_MAXCACHED` (default: `10`
 - `DB_POOL_MAXSHARED` (default: `10`)
 - `DB_POOL_MAXUSAGE`  (default: `10000`)
+
+Optional configuration for external service integration:
+
+- `SENTRY_DSN`
+  Your Sentry DSN in the following form: `https://**********.ingest.sentry.io/XXXXXXXXXXXXXXXX`. Defaults to `None` (Sentry exception reporting disabled).
+- `SENTRY_ENVIRONMENT`
+  Sentry environment. Suggested values: `dev` or `prod`, but can be any custom string. Defaults to `dev`.
+- `WEBHOOK_ENABLED` (bool)
+  Enable external API webhook to be called when sender reached his quota limit (first time he's blocked). Possible values: `True` or `False`. Defaults to `False`.
+- `WEBHOOK_URL`
+  Webhook API URL of the external service that should be called if `WEBHOOK_ENABLED=True`. It supports the following placeholders, which are both optional: `{sender}`, `{token}`. You may provide a URL in the following form: `https://api.example.com/policyd/{sender}?token={token}` (the token will be a simple hash from your secret appended to the sender address), or if you omit the `{token}` in the URL, a signed JWT token will be passed as `Bearer` token in the `Authorization` header, which will also contain the sender in its payload.
+- `WEBHOOK_SECRET`
+  The shared secret to generate the webhook token. Configure this shared secret also on the external API's webhook to verify the token for authentication. Recommended way to generate a secret: `base64.b64encode(secrets.token_bytes(32))`
 
 For production, we recommend to start by copying `.env.example` and then fine-tune your `.env`:
 
@@ -404,7 +413,7 @@ Planned features (coming soon):
 - [x] **Ansible role** for easy production deployment
 - [x] **Github workflow** for CI/testing
 - [x] **Message retention**: Expire/purge old messages, configurable via env var `MESSAGE_RETENTION` (defaults to keep forever)
-- [ ] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
+- [x] Implement a **configurable webhook API** call for notification to sender on reaching quota limit (on first block) to external service.
 - [ ] **Publish package** to [PyPI](https://pypi.org/) (Might need some restructuring. Any help greatly appreciated!)
 
 ## Credits 🙏

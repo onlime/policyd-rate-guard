@@ -19,7 +19,7 @@ class Handler:
             self.logger.warning('Received DATA: %s', self.data)
             self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
 
-    def handle(self):
+    def handle(self) -> None:
         """Handle request"""
         # Read data
         self.data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
@@ -84,8 +84,11 @@ class Handler:
         # Create response
         if blocked:
             self.logger.warning('Message BLOCKED: %s', message.get_props_description())
-            if not was_blocked: # TODO: Implement webhook API call for notification to sender on quota limit reached (only on first block)
-                self.logger.debug('Quota limit reached for %s, notifying sender via webhook!', message.sender)
+            # Call API webhook to notify sender on quota limit reached (only on first block)
+            if not was_blocked and self.conf.get('WEBHOOK_ENABLED', False):
+                self.logger.debug('Rate limit reached for %s, notifying sender via webhook!', message.sender)
+                from .webhook import Webhook
+                Webhook(self.conf, self.logger, message).call()
             self.logger.warning(log_message)
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
         else:
@@ -93,7 +96,7 @@ class Handler:
             self.logger.info(log_message)
             self.send_response('OK')
 
-    def send_response(self, message: str = 'OK'):
+    def send_response(self, message: str = 'OK') -> None:
         """Send response"""
         # actions return to Postfix, see http://www.postfix.org/access.5.html for a list of actions.
         data = 'action={}\n\n'.format(message)

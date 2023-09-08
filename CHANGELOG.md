@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [v0.7.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.0) (2023-09-08)
+
+**Improved:**
+
+- Updated docker-compose `policyd` service Docker image from `python:3.8` to `python:3.11`
+
+**Added:**
+
+- Added configurable webhook API call to trigger sender notification when reaching his quota limit (on first block). It supports both simple token (passed as query param) and JWT token (passed as `Bearer` token in `Authorization` header).
+- Added new environment variables for external webhook API: `WEBHOOK_ENABLED`, `WEBHOOK_URL`, `WEBHOOK_SECRET`
+
 ## [v0.6.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.6.1) (2023-09-06)
 
 **Improved:**

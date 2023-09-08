@@ -1,6 +1,9 @@
 from .ratelimit import Ratelimit
+from datetime import datetime
 
 class Message:
+
+    created_at = datetime.now()
 
     def __init__(
         self,
