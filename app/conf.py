@@ -3,8 +3,9 @@ from dotenv import load_dotenv
 from distutils.util import strtobool
 from typing import Any
 
+
 class Config:
-    def __init__(self, path = None) -> None:
+    def __init__(self, path: str = None) -> None:
         load_dotenv(dotenv_path=path)
 
     def get(self, key: str, default: Any = None) -> str:

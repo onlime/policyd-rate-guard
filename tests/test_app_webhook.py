@@ -8,6 +8,7 @@ from app.db import DbConnectionPool
 from app.logging import Logging
 from app._version import __version__ as app_version
 
+
 class TestWebhook(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -40,11 +41,11 @@ class TestWebhook(unittest.TestCase):
         self.webhook.call()
 
         # Assert that requests.post was called with the expected URL, headers, and JSON data
-        expected_url = 'https://example.com/api/policyd/test@example.com?token=34caa5c52fce98bc56fa3bfd8274a92328f09a6e0b27da2b5d89c1b5c5ed05c5'
+        expected_token = '34caa5c52fce98bc56fa3bfd8274a92328f09a6e0b27da2b5d89c1b5c5ed05c5'
+        expected_url = f'https://example.com/api/policyd/test@example.com?token={expected_token}'
         expected_headers = {'User-Agent': f'policyd-rate-guard/{app_version}'}
         expected_data = self.webhook.get_data()
         mock_post.assert_called_once_with(expected_url, headers=expected_headers, json=expected_data)
-
 
     def test_get_data(self) -> None:
         data = self.webhook.get_data()

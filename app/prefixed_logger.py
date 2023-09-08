@@ -2,6 +2,7 @@ import inspect
 import logging
 from os import path
 
+
 class PrefixedLogger(logging.Logger):
     """Custom logger that prefixes messages with msgid, the filename, class and function name of the caller"""
 
@@ -28,7 +29,7 @@ class PrefixedLogger(logging.Logger):
         co_class = frame.f_locals.get('self', None).__class__.__name__ if 'self' in frame.f_locals else None
         co_function = frame.f_code.co_name
         return co_filename, co_class, co_function
-    
+
     def _get_caller_frame(self):
         frame = inspect.currentframe().f_back
         try:
@@ -37,5 +38,5 @@ class PrefixedLogger(logging.Logger):
             while frame and self.__class__.__name__ == frame.f_locals.get('self', None).__class__.__name__:
                 frame = frame.f_back
         except (AttributeError):
-            pass # Ignore AttributeError: 'NoneType' object has no attribute '__class__'
+            pass  # Ignore AttributeError: 'NoneType' object has no attribute '__class__'
         return frame

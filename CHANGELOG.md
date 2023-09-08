@@ -5,6 +5,7 @@
 **Improved:**
 
 - Updated docker-compose `policyd` service Docker image from `python:3.8` to `python:3.11`
+- Improved Python code style by fixing all Flake8 linting warnings.
 
 **Added:**
 

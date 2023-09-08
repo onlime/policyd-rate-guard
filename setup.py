@@ -23,6 +23,7 @@ def add_data_file(dir, file, check_dir=False, mkdir=False):
                     pass
             data_files.append((dir, [file]))
 
+
 # if install as root populate /etc
 if os.getuid() == 0:
     add_data_file('/etc/logrotate.d', 'deployment/logrotate.d/policyd-rate-guard')
@@ -30,7 +31,7 @@ if os.getuid() == 0:
     add_data_file('/etc/systemd/system', 'deployment/systemd/policyd-rate-guard-cleanup.service', check_dir=True)
     add_data_file('/etc/systemd/system', 'deployment/systemd/policyd-rate-guard-cleanup.timer', check_dir=True)
 # else use user .config dir
-#else:
+# else:
 #    conf_dir = os.path.expanduser("~/.config/")
 #    add_data_file(conf_dir, 'policyd_rate_guard/policyd-rate-guard.yaml', mkdir=True)
 

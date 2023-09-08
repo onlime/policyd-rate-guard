@@ -32,7 +32,6 @@ class Ratelimit:
 
         self.changed = self.id is None
 
-
     def store(self):
         """Store ratelimit in database"""
         if not self.changed:
@@ -47,8 +46,9 @@ class Ratelimit:
         """Store new ratelimit in database"""
         self.logger.debug('Storing ratelimit')
         self.cursor.execute(
-            """INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`, `msg_total`, `rcpt_total`)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
+            '''INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`,
+              `rcpt_counter`, `msg_total`, `rcpt_total`)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
             (
                 self.sender,
                 self.quota,
@@ -68,7 +68,8 @@ class Ratelimit:
         """Update ratelimit in database"""
         self.logger.debug('Updating ratelimit')
         self.cursor.execute(
-            'UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s, `msg_total` = %s, `rcpt_total` = %s WHERE `id` = %s',
+            '''UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s, `msg_total` = %s,
+            `rcpt_total` = %s WHERE `id` = %s''',
             (
                 self.quota,
                 self.msg_counter,
@@ -103,11 +104,12 @@ class Ratelimit:
     def check_over_quota(self) -> bool:
         """Check if ratelimit is over quota"""
         self.logger.debug('Checking if ratelimit is over quota for %s', self.sender)
-        if self.rcpt_counter > self.quota or self.msg_counter > self.quota: # rcpt_counter should always be greater than msg_counter
+        # rcpt_counter should always be greater than msg_counter, but just in case...
+        if self.rcpt_counter > self.quota or self.msg_counter > self.quota:
             self.logger.debug('Ratelimit is over quota for %s', self.sender)
             return True
         return False
-    
+
     @staticmethod
     def find(sender: str, db: object, logger: object, conf: object) -> object:
         """Get ratelimit for sender"""
@@ -136,7 +138,7 @@ class Ratelimit:
             conf,
             logger,
         )
-    
+
     @staticmethod
     def reset_all_counters(db_pool: object, logger: object):
         """Reset all ratelimit counters"""
@@ -149,7 +151,9 @@ class Ratelimit:
             # reset all counters, but don't change updated_at timestamp
             cursor.execute('UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0, `updated_at` = `updated_at`')
             # only reset quota if it is not locked
-            cursor.execute('UPDATE `ratelimits` SET `quota` = `quota_reset`, `updated_at` = `updated_at` WHERE `quota_locked` = 0')
+            cursor.execute(
+                'UPDATE `ratelimits` SET `quota` = `quota_reset`, `updated_at` = `updated_at` WHERE `quota_locked` = 0'
+            )
             db.commit()
         finally:
             db.close()

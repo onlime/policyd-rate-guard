@@ -2,6 +2,7 @@ import unittest
 from app.conf import Config
 from app.logging import Logging
 
+
 class TestAppLogging(unittest.TestCase):
 
     def test_get_logger(self) -> None:

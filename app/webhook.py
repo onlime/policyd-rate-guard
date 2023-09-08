@@ -1,6 +1,7 @@
 import requests
 from ._version import __version__ as app_version
 
+
 class Webhook:
     """Trigger webhook for sender notification"""
 
@@ -8,11 +9,14 @@ class Webhook:
         self.conf = conf
         self.logger = logger
         self.message = message
-    
+
     def call(self) -> None:
         """Call webhook"""
         webhook_url_tpl = self.conf.get('WEBHOOK_URL')
         webhook_secret = self.conf.get('WEBHOOK_SECRET')
+        if webhook_url_tpl is None or webhook_secret is None:
+            raise ValueError('WEBHOOK_URL and WEBHOOK_SECRET must be configured')
+
         user_agent = f'policyd-rate-guard/{app_version}'
         headers = {
             # 'Content-Type': 'application/json', # not needed when using 'json' param
@@ -36,7 +40,7 @@ class Webhook:
             self.logger.info(f'Webhook call successful: POST {webhook_url_tpl} (User-Agent: {user_agent})')
         else:
             self.logger.warning(f'Webhook call failed with status code: {response.status_code} {response.text}')
-    
+
     def get_data(self) -> dict:
         """Get data for webhook"""
         return {

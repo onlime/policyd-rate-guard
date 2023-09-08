@@ -96,8 +96,8 @@ $ git clone https://github.com/onlime/policyd-rate-guard.git
 
 ```bash
 $ cd /opt/policyd-rate-guard
-$ python3 -m venv venv
-$ . venv/bin/activate
+$ python3 -m venv .venv
+$ . .venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
 (venv)$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
@@ -389,8 +389,8 @@ To set up a basic developer environment, run the following commands:
 ```bash
 $ git clone git@gitlab.onlime.ch:onlime/policyd-rate-guard.git
 $ cd policyd-rate-guard
-$ python3 -m venv venv
-$ . venv/bin/activate
+$ python3 -m venv .venv
+$ . .venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
 $ docker-compose up -d db
@@ -486,6 +486,18 @@ $ . venv/bin/activate
 
 > [!IMPORTANT]
 > Make sure to always run the tests inside your venv!
+
+### Linting with flake8
+
+You can run Python code style linting with [Flake8](https://flake8.pycqa.org/) locally in your venv:
+
+```bash
+$ . venv/bin/activate
+(venv)$ pip install flake8
+(venv)$ flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv
+```
+
+The same will also be done in our [Github workflow `ci.yml`](https://github.com/onlime/policyd-rate-guard/actions/workflows/ci.yml).
 
 ### Configure Sentry SDK
 

@@ -1,5 +1,6 @@
 from .message import Message
 
+
 class Handler:
     """Handle request"""
 
@@ -14,21 +15,24 @@ class Handler:
         self.db_pool = db_pool
         try:
             self.handle()
-        except Exception as e: # pragma: no cover
+        except Exception as e:  # pragma: no cover
             self.logger.exception('Unhandled Exception: %s', e)
             self.logger.warning('Received DATA: %s', self.data)
-            self.send_response('DUNNO') # use DUNNO as accept action, just to distinguish between OK and unhandled exception
+            self.send_response('DUNNO')  # use DUNNO as accept action, just to distinguish between OK and unhandled exception
 
     def handle(self) -> None:
         """Handle request"""
         # Read data
-        self.data = self.conn.recv(2048).decode('utf-8') # Attention: We only read first 2048 bytes, which is sufficient for our needs
+        # Attention: We only read first 2048 bytes, which is sufficient for our needs
+        self.data = self.conn.recv(2048).decode('utf-8')
         if not self.data:
             raise Exception('No data received')
         self.logger.debug('Received data: %s', self.data)
 
         # Parse data using a dictionary comprehension
-        request = { key: value for line in self.data.strip().split("\n") for key, value in [line.strip().split('=', 1)] if value }
+        request = {
+            key: value for line in self.data.strip().split("\n") for key, value in [line.strip().split('=', 1)] if value
+        }
         self.logger.debug('Parsed request: %s', request)
 
         # Add msgid to logger
@@ -60,17 +64,18 @@ class Handler:
         )
         message.get_ratelimit()
         was_blocked = message.is_blocked()
-        message.update_ratelimit() # Always update counter, even if quota limit was already reached before (was_blocked)!
-        blocked = message.is_blocked() # ... and make sure we check for blocked after having raised the counter.
+        message.update_ratelimit()  # Always update counter, even if quota limit was already reached before (was_blocked)!
+        blocked = message.is_blocked()  # ... and make sure we check for blocked after having raised the counter.
         message.store()
 
         # Detailed log message in the following format:
-        # TEST1234567: client=unknown[8.8.8.8], helo=myCLIENTPC, sasl_method=PLAIN, sasl_username=test@example.com, recipient_count=1, curr_count=2/1000, status=ACCEPTED
-        log_message = 'client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(
+        # TEST1234567: client=unknown[8.8.8.8], helo=myCLIENTPC, sasl_method=PLAIN, sasl_username=test@example.com,
+        # recipient_count=1, curr_count=2/1000, status=ACCEPTED
+        log_msg = 'client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(  # noqa: E501
             message.client_name,
             message.client_address,
-            request.get('helo_name'), # currently not stored in Message object or `messages` table
-            request['sasl_method'], # currently not stored in Message object or `messages` table
+            request.get('helo_name'),  # currently not stored in Message object or `messages` table
+            request['sasl_method'],  # currently not stored in Message object or `messages` table
             message.sender,
             message.from_addr,
             message.to_addr,
@@ -89,11 +94,11 @@ class Handler:
                 self.logger.debug('Rate limit reached for %s, notifying sender via webhook!', message.sender)
                 from .webhook import Webhook
                 Webhook(self.conf, self.logger, message).call()
-            self.logger.warning(log_message)
+            self.logger.warning(log_msg)
             self.send_response('DEFER_IF_PERMIT ' + self.conf.get('ACTION_TEXT_BLOCKED', 'Rate limit reached, retry later'))
         else:
             self.logger.debug('Message ACCEPTED: %s', message.get_props_description())
-            self.logger.info(log_message)
+            self.logger.info(log_msg)
             self.send_response('OK')
 
     def send_response(self, message: str = 'OK') -> None:
@@ -106,9 +111,9 @@ class Handler:
 
     def __del__(self):
         """Destructor"""
-        self.logger.msgid = None # Reset msgid in logger
+        self.logger.msgid = None  # Reset msgid in logger
         # TODO: Do we need to close the cursor as well? (prior to closing the connection)
         if self.db is not None:
-            self.db.close() # Close database connection
+            self.db.close()  # Close database connection
             self.db = None
         self.logger.debug('Handler destroyed')

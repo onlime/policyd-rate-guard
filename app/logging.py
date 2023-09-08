@@ -3,6 +3,7 @@ import logging.handlers
 from .conf import Config
 from .prefixed_logger import PrefixedLogger
 
+
 class Logging:
 
     logger = None
@@ -44,7 +45,7 @@ class Logging:
         logging.basicConfig(level=log_level, format=log_format, handlers=log_handlers)
         logger = logging.getLogger('policyd-rate-guard')
         logger.setLevel(log_level)
-        logger.msg_prefix = conf.get('LOG_MSG_PREFIX', True) # Enable/disable custom log message prefix feature
+        logger.msg_prefix = conf.get('LOG_MSG_PREFIX', True)  # Enable/disable custom log message prefix feature
 
         Logging.logger = logger
         return logger

@@ -20,6 +20,7 @@ from app.handler import Handler
 from app.logging import Logging
 from app.db import DbConnectionPool
 
+
 class Daemon:
 
     def __init__(self) -> None:
@@ -64,7 +65,7 @@ class Daemon:
             try:
                 os.remove(socket_path)
             except OSError:
-                if os.path.exists(socket_path): # pragma: no cover
+                if os.path.exists(socket_path):  # pragma: no cover
                     raise
             self.bind_socket(socket.AF_UNIX, socket_path)
             os.chmod(socket_path, 0o666)
@@ -94,5 +95,6 @@ class Daemon:
             except OSError as error:
                 self.logger.error('run.py - Error removing socket file: %s', error)
 
-if __name__ == '__main__': # pragma: no cover
+
+if __name__ == '__main__':  # pragma: no cover
     Daemon()

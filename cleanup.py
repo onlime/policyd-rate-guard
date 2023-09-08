@@ -4,6 +4,7 @@ from app.db import DbConnectionPool
 from app.ratelimit import Ratelimit
 from app.message import Message
 
+
 class Cleaner:
 
     def __init__(self, conf: object = None) -> None:
@@ -24,5 +25,6 @@ class Cleaner:
         if message_retention > 0:
             Message.purge_old_messages(self.db_pool, self.logger, message_retention)
 
-if __name__ == '__main__': # pragma: no cover
+
+if __name__ == '__main__':  # pragma: no cover
     Cleaner()

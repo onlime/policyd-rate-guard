@@ -1,6 +1,7 @@
 from .ratelimit import Ratelimit
 from datetime import datetime
 
+
 class Message:
 
     created_at = datetime.now()
@@ -38,7 +39,9 @@ class Message:
         """Store message in database"""
         self.logger.debug('Storing message')
         self.cursor.execute(
-            'INSERT INTO `messages` (`ratelimit_id`, `msgid`, `sender`, `rcpt_count`, `blocked`, `from_addr`, `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)',
+            '''INSERT INTO `messages` (`ratelimit_id`, `msgid`, `sender`, `rcpt_count`, `blocked`, `from_addr`,
+            `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
             (
                 self.ratelimit.get_id(),
                 self.msgid,
@@ -59,7 +62,7 @@ class Message:
         """Get ratelimit for sender"""
         self.logger.debug('Getting ratelimit for sender {}'.format(self.sender))
         self.ratelimit = Ratelimit.find(self.sender, self.db, self.logger, self.conf)
-    
+
     def update_ratelimit(self) -> None:
         """Update ratelimit for sender"""
         self.logger.debug('Updating ratelimit counters for sender {}'.format(self.sender))
@@ -77,7 +80,11 @@ class Message:
         self.blocked = False
         return False
 
-    def get_props_description(self, props: list = ['sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'], separator: str = ' '):
+    def get_props_description(
+        self,
+        props: list = ['sender', 'rcpt_count', 'from_addr', 'client_address', 'client_name'],
+        separator: str = ' '
+    ) -> str:
         return separator.join(f"{name}={getattr(self, name)}" for name in props)
 
     @staticmethod
@@ -86,7 +93,10 @@ class Message:
         logger.debug('Purge old messages')
         db = db_pool.connection()
         try:
-            deleted = db.cursor().execute('DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %s DAY)', (days,))
+            deleted = db.cursor().execute(
+                'DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %s DAY)',
+                (days,)
+            )
             db.commit()
             if deleted > 0:
                 logger.info('Deleted {} old messages (retention: {} days)'.format(deleted, days))

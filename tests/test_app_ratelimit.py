@@ -4,6 +4,7 @@ from app.logging import Logging
 from app.db import DbConnectionPool
 from app.ratelimit import Ratelimit
 
+
 class TestRatelimit(unittest.TestCase):
 
     def setUp(self) -> None:
