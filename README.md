@@ -294,6 +294,9 @@ Both `{sender}` and `{token}` placeholders in `WEBHOOK_URL` are optional! See ex
 > WEBHOOK_URL="http://host.docker.internal:8080/api/policyd/{sender}?token={token}"
 > ```
 
+> [!IMPORTANT]
+> On production, make sure you always just use `https://` in your `WEBHOOK_URL`, so the token is never getting exposed!
+
 You can generate the shared secret for `WEBHOOK_SECRET` like this, with Python (`python3` interactive shell):
 
 ```python
