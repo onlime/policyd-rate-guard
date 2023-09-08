@@ -2,13 +2,13 @@ import unittest
 from app.message import Message
 from app.conf import Config
 from app.db import DbConnectionPool
-from app.logging import get_logger
+from app.logging import Logging
 
 class TestMessage(unittest.TestCase):
 
     def setUp(self) -> None:
         self.conf = Config('.env.test')
-        self.logger = get_logger(self.conf)
+        self.logger = Logging.get_logger(self.conf)
         self.db = DbConnectionPool(self.conf).connection()
         self.message = Message(
             'TEST1234567',

@@ -1,5 +1,5 @@
 from app.conf import Config
-from app.logging import get_logger
+from app.logging import Logging
 from app.db import DbConnectionPool
 from app.ratelimit import Ratelimit
 from app.message import Message
@@ -8,7 +8,7 @@ class Cleaner:
 
     def __init__(self, conf: object = None) -> None:
         self.conf = conf or Config()
-        self.logger = get_logger(self.conf)
+        self.logger = Logging.get_logger(self.conf)
         self.db_pool = DbConnectionPool(self.conf)
         self.logger.debug('Cleaning up database')
         self.reset_counters()

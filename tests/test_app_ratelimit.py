@@ -1,6 +1,6 @@
 import unittest
 from app.conf import Config
-from app.logging import get_logger
+from app.logging import Logging
 from app.db import DbConnectionPool
 from app.ratelimit import Ratelimit
 
@@ -8,7 +8,7 @@ class TestRatelimit(unittest.TestCase):
 
     def setUp(self) -> None:
         self.conf = Config('.env.test')
-        self.logger = get_logger(self.conf)
+        self.logger = Logging.get_logger(self.conf)
         self.db = DbConnectionPool(self.conf).connection()
 
     def test_find(self) -> None:

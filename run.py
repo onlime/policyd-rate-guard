@@ -17,14 +17,14 @@ import socket
 import threading
 from app.conf import Config
 from app.handler import Handler
-from app.logging import get_logger
+from app.logging import Logging
 from app.db import DbConnectionPool
 
 class Daemon:
 
     def __init__(self) -> None:
         self.conf = Config()
-        self.logger = get_logger(self.conf)
+        self.logger = Logging.get_logger(self.conf)
         self.db_pool = DbConnectionPool(self.conf)
         # TODO: Improve socket configuration parsing
         self.socket_conf = self.conf.get_array('SOCKET', '127.0.0.1,10033')

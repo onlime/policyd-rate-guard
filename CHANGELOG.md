@@ -11,6 +11,10 @@
 - Added configurable webhook API call to trigger sender notification when reaching his quota limit (on first block). For authentication, it supports both simple token (passed as query param) and JWT token (passed as `Authorization: Bearer` header).
 - Added new environment variables for external webhook API: `WEBHOOK_ENABLED`, `WEBHOOK_URL`, `WEBHOOK_SECRET`
 
+**Fixed:**
+
+- Prevent multiple logger instances by accessing a static `logger` variable. This fixes `ResourceWarning: unclosed file` exceptions which could have occurred in testing.
+
 ## [v0.6.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.6.1) (2023-09-06)
 
 **Improved:**
