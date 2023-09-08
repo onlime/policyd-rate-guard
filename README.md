@@ -34,6 +34,7 @@ But let me name some features that make it stand out from other solutions:
 - A multi-threaded app that uses [DBUtils PooledDB (pooled_db)](https://github.com/WebwareForPython/DBUtils) for **robust and efficient DB connection handling**.
 - Can be used with any [DB-API 2 (PEP 249)](https://peps.python.org/pep-0249/) conformant database adapter (currently supported: PyMySQL, sqlite3)
 - A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [DBUtils](https://webwareforpython.github.io/DBUtils/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.
+- **Supports external API webhooks** with simple token based authentication (passed as query param) or JWT token passed as `Authorization: Bearer` header. When configured, the webhook is triggered whenever a sender reaches his quota limit for the first time and you can send out notification through your own or any 3rd-party app.
 - Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
 - A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
 
@@ -193,6 +194,8 @@ You don't need to worry about any short downtime for this upgrade process, as it
 
 ## Configuration ⚙️
 
+### Environment Variables `.env`
+
 PolicydRateGuard can be fully configured through environment variables in `.env`. The following are supported:
 
 - `DB_DRIVER`
@@ -254,6 +257,125 @@ $ cp .env.example .env
 
 > [!NOTE]
 > Minimally, you should set `DB_PASSWORD`, and maybe enable `SYSLOG` logging. For all the other config params it's usually fine to stick with the defaults.
+
+### Configure API Webhook (optional)
+
+You may configure PolicydRateGuard to call an external API webhook when a sender reaches his quota limit. This will only be triggered the first time a sender runs over his limit and it will contain the following data (sample data):
+
+```json
+{
+    "msgid": "TEST1234567",
+    "sender": "demo1@example.com",
+    "client_address": "172.19.0.2",
+    "client_name": "unknown",
+    "rcpt_count": 10,
+    "from_addr": "test-from@example.com",
+    "to_addr": "test-to@example.com",
+    "timestamp": "2023-09-07 12:34:56",
+    "quota": 1000,
+    "quota_reset": 1000,
+    "used": 1005
+}
+```
+
+You can configure it in your `.env` like this:
+
+```ini
+WEBHOOK_ENABLED=True
+WEBHOOK_URL="https://example.com/api/policyd/{sender}?token={token}"
+WEBHOOK_SECRET="Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20="
+```
+Both `{sender}` and `{token}` placeholders in `WEBHOOK_URL` are optional! See explanation in Variant 1 vs. 2 below.
+
+> [!NOTE]
+> If you have your external API webhook running in your development environment, running on the same host where you run your `docker-compose` services (see Development guide below), you may use `host.docker.internal` to access your host. There's no need to map any extra ports in `docker-compose.yml`. If your API webhook runs on `localhost:8080`, you would simple put the following `WEBHOOK_URL` in `.env.docker`:
+>
+> ```ini
+> WEBHOOK_URL="http://host.docker.internal:8080/api/policyd/{sender}?token={token}"
+> ```
+
+You can generate the shared secret for `WEBHOOK_SECRET` like this, with Python (`python3` interactive shell):
+
+```python
+>>> import base64
+>>> import secrets
+>>> base64.b64encode(secrets.token_bytes(32))
+```
+
+or with PHP (e.g. using `php artisan tinker` in Laravel, or `php -a` interactive shell):
+
+```php
+> base64_encode(Str::random(32))
+```
+
+Depending on your external API, PolicydRateGuard supports two different ways of authentication:
+
+**Variant 1) Simple token as query param**
+
+The authentication token can be passed as a query param to your external API webhook. In this case, you need to use the `{token}` placeholder in your `WEBHOOK_URL`, no matter if you use the (optional) `{sender}` placeholder or not. The sender will always be part of the JSON data (payload) passed to your webhook anyway.
+
+In this case, the token will be generated like this (pseudo-code):
+
+````python
+sha256('{secret}{sender}')
+````
+
+The token would then need to get verified on the external API webhook in the same way, using the same shared secret.
+
+In a Laravel app, authentication will usually be done in a middleware, and we want to use route model binding for the `sender`.
+
+```php
+class PolicydWebhookController extends Controller
+{
+    public function __invoke(PolicydLimitReachedRequest $request, Mailaccount $mailaccount)
+    {
+        // TODO: send notification to $mailaccount owner
+        return ['success' => true];
+    }
+}
+```
+
+the route would look somewhat like this (`routes/api.php`):
+```php
+Route::post('/policyd/{mailaccount:username}', PolicydWebhookController::class)
+    ->middleware(AccessApiWebhookPolicyd::class);
+```
+
+and you would run the authentication check in your `AccessApiWebhookPolicyd` middleware:
+
+```php
+class AccessApiWebhookPolicyd
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        /** @var App\Models\Mailaccount $mailaccount */
+        $mailaccount = $request->route('mailaccount');
+        $token = hash('sha256', config('app.webhooks.secret').$mailaccount->username);
+        if ($request->query('token') !== $token) {
+            abort(403, 'You are not allowed to access this webhook.');
+        }
+        return $next($request);
+    }
+}
+```
+
+**Variant 2) JWT token in Authorization header**
+
+If your `WEBHOOK_URL` does not contain a `{token}` placeholder, we assume you don't want to pass it as query param, but as JWT token in the `Authorization: Bearer <token>` header instead. PolicydRateGuard will take care of it and generate a valid JWT token, basically like this:
+
+```python
+import jwt
+from datetime import datetime, timedelta, timezone
+payload = {
+    'sub': sender,
+    'exp': datetime.now(tz=timezone.utc) + timedelta(seconds=60)
+}
+return jwt.encode(payload, secret, algorithm='HS256')
+```
+
+The token is valid for 60s and contains the `sub` (subject, in our case the `sender`) in its payload. The subject in the JWT token is always the same as the `sender` in the JSON data passed via POST request.
+
+If your external API webhook runs on PHP, we recommend to use the [`lcobucci/jwt`](https://github.com/lcobucci/jwt) library to decode and verify the JWT token. In a Laravel app you can go for a similar implementation as described in Variant 1) and decode the JWT token in your `AccessApiWebhookPolicyd` middleware.
 
 ## Development 👩‍💻
 

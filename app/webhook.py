@@ -64,4 +64,9 @@ class Webhook:
     def get_jwt_token(self, secret: str) -> str:
         """Build JWT token"""
         import jwt
-        return jwt.encode({'sender': self.message.sender}, secret, algorithm='HS256')
+        from datetime import datetime, timedelta, timezone
+        payload = {
+            'sub': self.message.sender,
+            'exp': datetime.now(tz=timezone.utc) + timedelta(seconds=60)
+        }
+        return jwt.encode(payload, secret, algorithm='HS256')
