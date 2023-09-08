@@ -1,5 +1,4 @@
 import requests
-import hashlib
 from ._version import __version__ as app_version
 
 class Webhook:
@@ -58,6 +57,7 @@ class Webhook:
 
     def get_simple_token(self, secret: str) -> str:
         """Build token"""
+        import hashlib
         plaintext = f'{secret}{self.message.sender}'
         return hashlib.sha256(plaintext.encode('utf-8')).hexdigest()
 

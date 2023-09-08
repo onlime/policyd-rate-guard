@@ -18,11 +18,9 @@ class TestMessage(unittest.TestCase):
             3,
             'test@example.com',
             'to_test@example.com',
-            'cc_test@example.com',
-            'bcc_test@example.com',
-            self.db,
-            self.conf,
-            self.logger,
+            db=self.db,
+            conf=self.conf,
+            logger=self.logger,
         )
 
     def test_init(self) -> None:
