@@ -43,12 +43,15 @@ class TestWebhook(unittest.TestCase):
         # Assert that requests.post was called with the expected URL, headers, and JSON data
         expected_token = '34caa5c52fce98bc56fa3bfd8274a92328f09a6e0b27da2b5d89c1b5c5ed05c5'
         expected_url = f'https://example.com/api/policyd/test@example.com?token={expected_token}'
-        expected_headers = {'User-Agent': f'policyd-rate-guard/{app_version}'}
-        expected_data = self.webhook.get_data()
-        mock_post.assert_called_once_with(expected_url, headers=expected_headers, json=expected_data)
+        expected_headers = {
+            'User-Agent': f'policyd-rate-guard/{app_version}',
+            'Accept': 'application/json',
+        }
+        expected_metadata = self.webhook.get_metadata()
+        mock_post.assert_called_once_with(expected_url, headers=expected_headers, json=expected_metadata)
 
-    def test_get_data(self) -> None:
-        data = self.webhook.get_data()
+    def test_get_metadata(self) -> None:
+        data = self.webhook.get_metadata()
         self.assertEqual(type(data).__name__, 'dict')
         self.assertEqual(data['msgid'], 'TEST1234567')
         self.assertEqual(data['sender'], 'test@example.com')

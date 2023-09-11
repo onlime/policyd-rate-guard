@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## [v0.7.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.1) (2023-09-11)
+
+**Improved:**
+
+- You can now use any key of the passed JSON object (payload of the POST request) in your `WEBHOOK_URL` as a placeholder. All placeholders are optional.
+- Added `Accept: application/json` header to webhook POST requests.
+
 ## [v0.7.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.0) (2023-09-08)
 
 **Improved:**

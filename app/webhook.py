@@ -12,37 +12,40 @@ class Webhook:
 
     def call(self) -> None:
         """Call webhook"""
-        webhook_url_tpl = self.conf.get('WEBHOOK_URL')
+        webhook_url = self.conf.get('WEBHOOK_URL')
         webhook_secret = self.conf.get('WEBHOOK_SECRET')
-        if webhook_url_tpl is None or webhook_secret is None:
+        if webhook_url is None or webhook_secret is None:
             raise ValueError('WEBHOOK_URL and WEBHOOK_SECRET must be configured')
 
         user_agent = f'policyd-rate-guard/{app_version}'
         headers = {
-            # 'Content-Type': 'application/json', # not needed when using 'json' param
             'User-Agent': user_agent,
+            'Accept': 'application/json',
+            # 'Content-Type': 'application/json',  # not needed when using 'json' param
         }
 
-        try:
+        metadata = self.get_metadata()
+
+        if '{token}' in webhook_url:
             # Variant 1) Simple token as query parameter
             token = self.get_simple_token(webhook_secret)
-            webhook_url = webhook_url_tpl.format(sender=self.message.sender, token=token)
-        except KeyError:
+            formatted_webhook_url = webhook_url.format(**metadata, token=token)
+        else:
             # Variant 2) JWT Token as Authorization header
             token = self.get_jwt_token(webhook_secret)
             headers['Authorization'] = f'Bearer {token}'
-            webhook_url = webhook_url_tpl
+            formatted_webhook_url = webhook_url.format(**metadata)
 
         # Setting data with 'json' param instead of 'data' will also set Content-Type header to 'application/json'
-        response = requests.post(webhook_url, headers=headers, json=self.get_data())
+        response = requests.post(formatted_webhook_url, headers=headers, json=metadata)
 
         if response.status_code == 200:
-            self.logger.info(f'Webhook call successful: POST {webhook_url_tpl} (User-Agent: {user_agent})')
+            self.logger.info(f'Webhook call successful: POST {webhook_url} (User-Agent: {user_agent})')
         else:
             self.logger.warning(f'Webhook call failed with status code: {response.status_code} {response.text}')
 
-    def get_data(self) -> dict:
-        """Get data for webhook"""
+    def get_metadata(self) -> dict:
+        """Get metadata for webhook"""
         return {
             # message data
             'msgid': self.message.msgid,
