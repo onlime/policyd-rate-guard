@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [v0.7.2](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.2) (2023-09-11)
+
+**Improved:**
+
+- Webhook authentication token type (Simple hashed token vs. JWT token) can now be configured with new env var `WEBHOOK_USE_JWT` and no longer depends on whether you pass the token as query param (not recommended for JWT tokens) or `Authorization: Bearer` header.
+- Webhook JWT token now contains all necessary claims for strict verification: `sub` (Subject), `iss` (Issuer), `iat` (Issued At), `nbf` (Not Before), `exp` (Expiration Time).
+
+**Fixed:**
+
+- Webhook JWT token is now correctly encoded using base64 decoded secret (`WEBHOOK_SECRET`) as key. Previously, we forgot to decode it, but always recommended (and still do!) to use a base64 encoded secret.
+
 ## [v0.7.1](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.1) (2023-09-11)
 
 **Improved:**

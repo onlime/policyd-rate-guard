@@ -65,8 +65,10 @@ class TestWebhook(unittest.TestCase):
         self.assertEqual(token, '34caa5c52fce98bc56fa3bfd8274a92328f09a6e0b27da2b5d89c1b5c5ed05c5')
 
     def test_get_jwt_token(self) -> None:
+        from base64 import b64decode
         secret = self.conf.get('WEBHOOK_SECRET')
         token = self.webhook.get_jwt_token(secret)
         self.assertEqual(type(token).__name__, 'str')
-        payload = jwt.decode(token, secret, algorithms=['HS256'])
+        payload = jwt.decode(token, b64decode(secret), algorithms=['HS256'])
         self.assertEqual(payload['sub'], 'test@example.com')
+        self.assertEqual(payload['iss'], 'policyd-rate-guard')

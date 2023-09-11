@@ -14,6 +14,7 @@ class Webhook:
         """Call webhook"""
         webhook_url = self.conf.get('WEBHOOK_URL')
         webhook_secret = self.conf.get('WEBHOOK_SECRET')
+        use_jwt = self.conf.get('WEBHOOK_USE_JWT', False)
         if webhook_url is None or webhook_secret is None:
             raise ValueError('WEBHOOK_URL and WEBHOOK_SECRET must be configured')
 
@@ -26,13 +27,14 @@ class Webhook:
 
         metadata = self.get_metadata()
 
+        # Build token, either simple hash or JWT token
+        token = self.get_jwt_token(webhook_secret) if use_jwt else self.get_simple_token(webhook_secret)
+
         if '{token}' in webhook_url:
-            # Variant 1) Simple token as query parameter
-            token = self.get_simple_token(webhook_secret)
+            # Variant 1) Pass token (usually simple hash) as query parameter
             formatted_webhook_url = webhook_url.format(**metadata, token=token)
         else:
-            # Variant 2) JWT Token as Authorization header
-            token = self.get_jwt_token(webhook_secret)
+            # Variant 2) Pass token (usually JWT token) as Authorization header
             headers['Authorization'] = f'Bearer {token}'
             formatted_webhook_url = webhook_url.format(**metadata)
 
@@ -71,9 +73,14 @@ class Webhook:
     def get_jwt_token(self, secret: str) -> str:
         """Build JWT token"""
         import jwt
+        from base64 import b64decode
         from datetime import datetime, timedelta, timezone
+        timestamp = datetime.now(tz=timezone.utc)
         payload = {
-            'sub': self.message.sender,
-            'exp': datetime.now(tz=timezone.utc) + timedelta(seconds=60)
+            'sub': self.message.sender,  # subject
+            'iss': 'policyd-rate-guard',  # issuer
+            'iat': timestamp,  # issued at
+            'nbf': timestamp,  # not before
+            'exp': timestamp + timedelta(seconds=60)  # expiration time
         }
-        return jwt.encode(payload, secret, algorithm='HS256')
+        return jwt.encode(payload, b64decode(secret), algorithm='HS256')
