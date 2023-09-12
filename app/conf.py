@@ -5,6 +5,7 @@ from typing import Any
 
 
 class Config:
+
     def __init__(self, path: str = None) -> None:
         load_dotenv(dotenv_path=path)
 

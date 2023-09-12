@@ -56,11 +56,11 @@ class TestMessage(unittest.TestCase):
         self.assertEqual(self.message.blocked, True)
 
     def test_store(self) -> None:
-        old_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567',))
+        old_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567', ))
         self.message.get_ratelimit()
         self.message.is_blocked()
         self.message.store()
-        new_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567',))
+        new_count = self.message.cursor.execute('SELECT * FROM `messages` WHERE `msgid` = %s', ('TEST1234567', ))
         self.assertEqual(new_count, old_count + 1)
 
     def test_get_props_description(self) -> None:

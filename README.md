@@ -500,17 +500,32 @@ $ . venv/bin/activate
 > [!IMPORTANT]
 > Make sure to always run the tests inside your venv!
 
-### Linting with flake8
+### PEP8 Linting & Formatting
 
-You can run Python code style linting with [Flake8](https://flake8.pycqa.org/) locally in your venv:
+To comply Python code style as much as possible with [PEP8](https://peps.python.org/pep-0008/) you can use [YAPF](https://github.com/google/yapf) for formatting and [Flake8](https://flake8.pycqa.org) for linting:
 
 ```bash
 $ . venv/bin/activate
+(venv)$ pip install yapf
 (venv)$ pip install flake8
+
+(venv)$ yapf -i --recursive --exclude=venv .
 (venv)$ flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=venv
 ```
 
-The same will also be done in our [Github workflow `ci.yml`](https://github.com/onlime/policyd-rate-guard/actions/workflows/ci.yml).
+We have the following `.style.yapf` in place:
+
+```ini
+[style]
+based_on_style = pep8
+COLUMN_LIMIT = 127
+DEDENT_CLOSING_BRACKETS = True
+COALESCE_BRACKETS = True
+ALLOW_MULTILINE_DICTIONARY_KEYS = True
+SPLIT_BEFORE_FIRST_ARGUMENT = False
+```
+
+The same linting with Flake8 is also done in our [Github workflow `ci.yml`](https://github.com/onlime/policyd-rate-guard/actions/workflows/ci.yml), but won't break the workflow, as we use `--exit-zero`.
 
 ### Configure Sentry SDK
 

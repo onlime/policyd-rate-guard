@@ -48,10 +48,7 @@ class Daemon:
         while True:
             try:
                 conn, addr = self.socket.accept()
-                threading.Thread(
-                    target=Handler,
-                    args=(conn, addr, self.conf, self.logger, self.db_pool)
-                ).start()
+                threading.Thread(target=Handler, args=(conn, addr, self.conf, self.logger, self.db_pool)).start()
             except KeyboardInterrupt:
                 break
         self.close_socket()

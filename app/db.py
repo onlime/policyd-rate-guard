@@ -3,6 +3,7 @@ from dbutils.pooled_db import PooledDB
 
 
 class DbConnectionPool:
+
     def __init__(self, conf: object):
         self.driver = conf.get('DB_DRIVER', 'pymysql').lower()
         self.backend = import_module(self.driver)

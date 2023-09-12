@@ -18,8 +18,7 @@ class TestServer(unittest.TestCase):
         self.cursor.executemany(
             '''INSERT INTO `ratelimits`
             (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`, `rcpt_counter`, `msg_total`, `rcpt_total`)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
-            [
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''', [
                 ('test1@example.com', 1000, 1000, 0, 0, 0, 100, 100),
                 ('test2@example.com', 1000, 1000, 0, 50, 60, 250, 260),
                 ('test3@example.com', 3000, 1000, 0, 60, 70, 360, 370),

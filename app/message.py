@@ -41,8 +41,7 @@ class Message:
         self.cursor.execute(
             '''INSERT INTO `messages` (`ratelimit_id`, `msgid`, `sender`, `rcpt_count`, `blocked`, `from_addr`,
             `to_addr`, `cc_addr`, `bcc_addr`, `client_address`, `client_name`)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
-            (
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''', (
                 self.ratelimit.get_id(),
                 self.msgid,
                 self.sender,
@@ -94,8 +93,7 @@ class Message:
         db = db_pool.connection()
         try:
             deleted = db.cursor().execute(
-                'DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %s DAY)',
-                (days,)
+                'DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %s DAY)', (days, )
             )
             db.commit()
             if deleted > 0:

@@ -35,7 +35,6 @@ if os.getuid() == 0:
 #    conf_dir = os.path.expanduser("~/.config/")
 #    add_data_file(conf_dir, 'policyd_rate_guard/policyd-rate-guard.yaml', mkdir=True)
 
-
 setup(
     name='policyd-rate-guard',
     version='0.5.0',

@@ -1,6 +1,5 @@
-
-
 class Ratelimit:
+
     def __init__(
         self,
         sender: str,
@@ -48,8 +47,7 @@ class Ratelimit:
         self.cursor.execute(
             '''INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `quota_locked`, `msg_counter`,
               `rcpt_counter`, `msg_total`, `rcpt_total`)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
-            (
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''', (
                 self.sender,
                 self.quota,
                 self.quota_reset,
@@ -69,8 +67,7 @@ class Ratelimit:
         self.logger.debug('Updating ratelimit')
         self.cursor.execute(
             '''UPDATE `ratelimits` SET `quota` = %s, `msg_counter` = %s, `rcpt_counter` = %s, `msg_total` = %s,
-            `rcpt_total` = %s WHERE `id` = %s''',
-            (
+            `rcpt_total` = %s WHERE `id` = %s''', (
                 self.quota,
                 self.msg_counter,
                 self.rcpt_counter,
@@ -115,10 +112,7 @@ class Ratelimit:
         """Get ratelimit for sender"""
         cursor = db.cursor()
         logger.debug('Getting ratelimit for sender %s', sender)
-        cursor.execute(
-            'SELECT * FROM `ratelimits` WHERE `sender` = %s',
-            (sender,)
-        )
+        cursor.execute('SELECT * FROM `ratelimits` WHERE `sender` = %s', (sender, ))
         result = cursor.fetchone()
         if result is None:
             logger.debug('No ratelimit found for sender %s', sender)

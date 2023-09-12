@@ -31,7 +31,9 @@ class Handler:
 
         # Parse data using a dictionary comprehension
         request = {
-            key: value for line in self.data.strip().split("\n") for key, value in [line.strip().split('=', 1)] if value
+            key: value
+            for line in self.data.strip().split("\n")
+            for key, value in [line.strip().split('=', 1)] if value
         }
         self.logger.debug('Parsed request: %s', request)
 
