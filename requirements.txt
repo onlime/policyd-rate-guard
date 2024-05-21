@@ -1,8 +1,8 @@
-cryptography==41.0.*
-DBUtils==3.0.*
+cryptography==42.0.*
+DBUtils==3.1.*
 PyMySQL==1.1.*
 PyJWT==2.8.*
 python-dotenv==1.0.*
-requests==2.31.*
-sentry-sdk==1.29.*
+requests==2.32.*
+sentry-sdk==2.2.*
 yoyo-migrations==8.2.*

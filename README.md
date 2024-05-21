@@ -8,7 +8,7 @@
 
 A slick sender rate limit policy daemon for Postfix, written in Python.
 
-©2023 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
+©2024 by [Onlime GmbH](https://www.onlime.ch/) – Your Swiss webhosting provider living the "no BS" philosophy!
 
 ## Features ✨
 

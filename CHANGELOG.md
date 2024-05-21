@@ -1,10 +1,18 @@
 # CHANGELOG
 
-## [v0.7.3](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.3) (unreleased)
+## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (unreleased)
+
+
+## [v0.7.3](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.3) (2024-05-21)
 
 **Improved:**
 
 - Improved PEP8 Python code style: Added configuration for [YAPF](https://github.com/google/yapf) and applied yapf formatting rules.
+- Upgraded packages: DBUtils 3.1.0, cryptography 42.0.7, PyMySQL 1.1.1, python-dotenv 1.0.1, requests 2.32.2, sentry-sdk 2.2.1
+
+**Security:**
+
+- **It is strongly recommended to upgrade all pip packages, as [PyMySQL 1.1.1](https://github.com/PyMySQL/PyMySQL/releases/tag/v1.1.1) fixes a SQL Injection vulnerability ([CVE-2024-36039](https://github.com/advisories/GHSA-v9hf-5j83-6xpp)).**
 
 
 ## [v0.7.2](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.2) (2023-09-11)

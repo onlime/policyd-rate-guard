@@ -1,5 +1,3 @@
-version: '3.2'
-
 services:
   # Database service to set up a testing/development environment
   db:
