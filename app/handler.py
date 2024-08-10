@@ -41,29 +41,47 @@ class Handler:
         self.logger.msgid = request.get('queue_id')
 
         # Break no sasl_username was found (e.g. on incoming mail on port 25)
-        if not request.get('sasl_username'):
-            self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
-            self.send_response('DUNNO')
-            return
+        if self.conf.get('RELAY_SERVER') is False:
+            if not request.get('sasl_username'):
+                self.logger.debug('sasl_username is empty, accepting message and reply with DUNNO')
+                self.send_response('DUNNO')
+                return
 
         # Get database connection from DB pool
         self.db = self.db_pool.connection()
 
         # Handle message
-        message = Message(
-            msgid=request['queue_id'],
-            sender=request['sasl_username'],
-            client_address=request['client_address'],
-            client_name=request['client_name'],
-            rcpt_count=request['recipient_count'],
-            from_addr=request.get('sender'),
-            to_addr=request.get('recipient'),
-            cc_addr=request.get('cc_address'),
-            bcc_addr=request.get('bcc_address'),
-            db=self.db,
-            conf=self.conf,
-            logger=self.logger
-        )
+        if self.conf.get('RELAY_SERVER') is False:
+            message = Message(
+                msgid=request['queue_id'],
+                sender=request['sasl_username'],
+                client_address=request['client_address'],
+                client_name=request['client_name'],
+                rcpt_count=request['recipient_count'],
+                from_addr=request.get('sender'),
+                to_addr=request.get('recipient'),
+                cc_addr=request.get('cc_address'),
+                bcc_addr=request.get('bcc_address'),
+                db=self.db,
+                conf=self.conf,
+                logger=self.logger
+            )
+        else:
+            message = Message(
+                msgid=request['queue_id'],
+                sender=request['sender'],
+                client_address=request['client_address'],
+                client_name=request['client_name'],
+                rcpt_count=request['recipient_count'],
+                from_addr=request.get('sender'),
+                to_addr=request.get('recipient'),
+                cc_addr=request.get('cc_address'),
+                bcc_addr=request.get('bcc_address'),
+                db=self.db,
+                conf=self.conf,
+                logger=self.logger
+            )
+
         message.get_ratelimit()
         was_blocked = message.is_blocked()
         message.update_ratelimit()  # Always update counter, even if quota limit was already reached before (was_blocked)!
@@ -73,20 +91,37 @@ class Handler:
         # Detailed log message in the following format:
         # TEST1234567: client=unknown[8.8.8.8], helo=myCLIENTPC, sasl_method=PLAIN, sasl_username=test@example.com,
         # recipient_count=1, curr_count=2/1000, status=ACCEPTED
-        log_msg = 'client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(  # noqa: E501
-            message.client_name,
-            message.client_address,
-            request.get('helo_name'),  # currently not stored in Message object or `messages` table
-            request['sasl_method'],  # currently not stored in Message object or `messages` table
-            message.sender,
-            message.from_addr,
-            message.to_addr,
-            message.rcpt_count,
-            message.ratelimit.rcpt_counter,
-            message.ratelimit.quota,
-            'BLOCKED' if blocked else 'ACCEPTED',
-            ' (QUOTA_LIMIT_REACHED)' if blocked and not was_blocked else ''
-        )
+        if self.conf.get('RELAY_SERVER') is False:
+            log_msg = 'client={}[{}], helo={}, sasl_method={}, sasl_username={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(  # noqa: E501
+                message.client_name,
+                message.client_address,
+                request.get('helo_name'),  # currently not stored in Message object or `messages` table
+                request['sasl_method'],  # currently not stored in Message object or `messages` table
+                message.sender,
+                message.from_addr,
+                message.to_addr,
+                message.rcpt_count,
+                message.ratelimit.rcpt_counter,
+                message.ratelimit.quota,
+                'BLOCKED' if blocked else 'ACCEPTED',
+                ' (QUOTA_LIMIT_REACHED)' if blocked and not was_blocked else ''
+            )
+        else:
+            # Permit works by protocol and sender
+            log_msg = 'client={}[{}], helo={}, protocol_name={}, sender={}, from={}, to={}, recipient_count={}, curr_count={}/{}, status={}{}'.format(  # noqa: E501
+                message.client_name,
+                message.client_address,
+                request.get('helo_name'),  # currently not stored in Message object or `messages` table
+                request['protocol_name'],  # currently not stored in Message object or `messages` table
+                message.sender,
+                message.from_addr,
+                message.to_addr,
+                message.rcpt_count,
+                message.ratelimit.rcpt_counter,
+                message.ratelimit.quota,
+                'BLOCKED' if blocked else 'ACCEPTED',
+                ' (QUOTA_LIMIT_REACHED)' if blocked and not was_blocked else ''
+            )
 
         # Create response
         if blocked:
