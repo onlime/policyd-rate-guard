@@ -1,7 +1,16 @@
 # CHANGELOG
 
-## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (unreleased)
+## [v0.7.5](https://github.com/onlime/policyd-rate-guard/releases) (unreleased)
 
+
+## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (2026-02-24)
+
+**Improved:**
+
+- Updated docker-compose `policyd` service Docker image from `python:3.11` to `python:3.13`
+- Updated docker-compose `db` service Docker image from `mysql:8.0` to `mysql:8.4`
+- Removed legacy `distutils` dependency and replaced `strtobool` implementation with a custom one
+- Upgraded packages: DBUtils 3.1.2, cryptography 46.0.5, PyMySQL 1.1.2, python-dotenv 1.0.2, requests 2.32.5, sentry-sdk 2.53.0
 
 ## [v0.7.3](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.3) (2024-05-21)
 

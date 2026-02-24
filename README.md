@@ -65,8 +65,8 @@ But let me name some features that make it stand out from other solutions:
 You need a running MySQL/MariaDB server and a running Postfix server with SASL auth to use this daemon. It might work under lower versions, but it was tested under the following:
 
 - Postfix 3.5+
-- MySQL 8.0+
-- Python 3.9+
+- MySQL 8.4+
+- Python 3.11+
 
 In addition to MySQL/MariaDB, it also supports Sqlite3, but this is currently untested.
 
@@ -96,8 +96,8 @@ $ git clone https://github.com/onlime/policyd-rate-guard.git
 
 ```bash
 $ cd /opt/policyd-rate-guard
-$ python3 -m venv .venv
-$ . .venv/bin/activate
+$ python3 -m venv venv
+$ . venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
 (venv)$ cp yoyo.ini.example yoyo.ini # & Adjust the settings
@@ -402,8 +402,8 @@ To set up a basic developer environment, run the following commands:
 ```bash
 $ git clone git@gitlab.onlime.ch:onlime/policyd-rate-guard.git
 $ cd policyd-rate-guard
-$ python3 -m venv .venv
-$ . .venv/bin/activate
+$ python3 -m venv venv
+$ . venv/bin/activate
 (venv)$ pip install --upgrade pip
 (venv)$ pip install -r requirements.txt
 $ docker-compose up -d db
@@ -491,10 +491,12 @@ To run the tests, run the following commands (you only need the `db` container r
 
 ```bash
 $ docker-compose up -d db
+$ cp .env.docker .env
 $ cp yoyo.ini.docker yoyo.ini # & Adjust the settings
 $ . venv/bin/activate
 (venv)$ yoyo apply
 (venv)$ ./tests.sh
+$ docker-compose down db
 ```
 
 > [!IMPORTANT]

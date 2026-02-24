@@ -1,8 +1,9 @@
 from os import getenv
 from dotenv import load_dotenv
-from distutils.util import strtobool
 from typing import Any
 
+def strtobool(val):
+    return val.lower() in ("y", "yes", "t", "true", "on", "1")
 
 class Config:
 
