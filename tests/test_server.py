@@ -116,7 +116,7 @@ async def test_fragmented_and_pipelined_requests(running: Running) -> None:
 
 
 async def test_long_request_is_counted_not_truncated(running: Running) -> None:
-    """F1: padded client-controlled values before sasl_username."""
+    """Padded client-controlled values before sasl_username (0.x read only 2048 bytes and lost it)."""
     reader, writer = await running.connect()
     data = postfix_request('victim@example.com', sender='x' * 1900 + '@example.com', helo_name='h' * 255)
     assert await ask(reader, writer, data) == b'action=OK\n\n'
@@ -207,7 +207,8 @@ async def test_shutdown_lets_busy_requests_finish(server_factory: Callable[..., 
     await asyncio.sleep(0.1)  # request is now being decided
     shutdown = asyncio.create_task(run.server.shutdown())
     assert await asyncio.wait_for(reader.readuntil(b'\n\n'), 5) == b'action=OK\n\n'
-    await shutdown
+    assert await asyncio.wait_for(reader.read(), 5) == b''  # closed after the reply, no further requests
+    await asyncio.wait_for(shutdown, 2)  # not the full grace period
     assert await asyncio.wait_for(idle_reader.read(), 5) == b''
     for w in (writer, idle_writer):
         w.close()

@@ -15,13 +15,17 @@ from policyd_rate_guard.config import DbSettings
 
 from .helpers import postfix_request
 
-ENV_KEYS = ('POLICYD_ENV_FILE', 'SENTRY_DSN', 'LISTEN_FDS', 'LISTEN_PID', 'NOTIFY_SOCKET')
+ENV_KEYS = {'POLICYD_ENV_FILE', 'LISTEN_FDS', 'LISTEN_PID', 'NOTIFY_SOCKET', 'QUOTA', 'SOCKET', 'SYSLOG',
+            'FAIL_ACTION', 'ACTION_TEXT_BLOCKED', 'MESSAGE_RETENTION'}  # fmt: skip
+ENV_PREFIXES = ('DB_', 'LOG_', 'WEBHOOK_', 'SENTRY_')
 
 
 @pytest.fixture(autouse=True)
 def clean_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    for key in ENV_KEYS:
-        monkeypatch.delenv(key, raising=False)
+    """A developer's exported configuration must not change the results (the environment wins over env files)."""
+    for key in list(os.environ):
+        if key in ENV_KEYS or key.startswith(ENV_PREFIXES):
+            monkeypatch.delenv(key)
 
 
 def env_file(tmp_path: Path, db: DbSettings | None = None, **values: object) -> Path:

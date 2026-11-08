@@ -176,3 +176,15 @@ def test_never_searches_for_dot_env(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     nested.mkdir(parents=True)
     monkeypatch.chdir(nested)
     assert load_settings(environ={}).quota == 1000
+
+
+def test_env_file_values_are_literal(tmp_path: Path) -> None:
+    """No ${VAR} interpolation and no stripping: both would silently change a password."""
+    env_file = tmp_path / 'test.env'
+    env_file.write_text('DB_PASSWORD=" p${USER}x "\n')
+    assert load_settings(env_file, environ={'USER': 'phi'}).db.password == ' p${USER}x '
+
+
+def test_quota_must_fit_the_column() -> None:
+    with pytest.raises(ConfigError, match='QUOTA'):
+        settings_from_mapping({'QUOTA': '4294967296'})

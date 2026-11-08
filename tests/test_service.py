@@ -42,7 +42,7 @@ def test_wrong_protocol_state_is_warned_once(
     svc = service(make_settings())
     for _ in range(3):
         svc.precheck(parse_request(postfix_request('u@example.com', protocol_state='RCPT')))
-    assert caplog.text.count('Not counting in protocol state RCPT') == 1
+    assert [r.levelname for r in caplog.records if 'Not counting' in r.getMessage()] == ['ERROR']
 
 
 @pytest.mark.parametrize('fail_action', ['DUNNO', 'DEFER_IF_PERMIT'])
@@ -72,7 +72,7 @@ def test_store_failure_keeps_the_decision(
     caplog: pytest.LogCaptureFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """F4: in 0.x an error after the decision (e.g. storing the message) turned a block into DUNNO."""
+    """In 0.x an error after the decision (e.g. storing the message) turned a block into DUNNO."""
     from policyd_rate_guard import service as service_module
     from policyd_rate_guard.ratelimit import Decision
 

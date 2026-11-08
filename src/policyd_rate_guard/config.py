@@ -23,7 +23,7 @@ DEFAULT_ENV_FILE = Path('/etc/policyd-rate-guard/policyd-rate-guard.env')
 WEBHOOK_PLACEHOLDERS = frozenset(f.name for f in fields(WebhookPayload))
 
 _TRUE = frozenset({'y', 'yes', 't', 'true', 'on', '1'})
-_FALSE = frozenset({'n', 'no', 'f', 'false', 'off', '0', ''})
+_FALSE = frozenset({'n', 'no', 'f', 'false', 'off', '0'})
 _ACTIONS = ('DUNNO', 'DEFER_IF_PERMIT')
 _LOG_LEVELS = ('DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL')
 
@@ -97,8 +97,9 @@ class _Reader:
     def text(self, key: str, default: str) -> str:
         return self.raw(key) or default
 
-    def optional(self, key: str) -> str | None:
-        return self.raw(key)
+    def secret(self, key: str) -> str:
+        """Unstripped: whitespace may be part of a password."""
+        return self._values.get(key) or ''
 
     def integer(self, key: str, default: int, minimum: int = 0, maximum: int | None = None) -> int:
         value = self.raw(key)
@@ -183,9 +184,9 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
     db = DbSettings(
         host=r.text('DB_HOST', 'localhost'),
         port=r.integer('DB_PORT', 3306, 1, 65535),
-        unix_socket=r.optional('DB_UNIX_SOCKET'),
+        unix_socket=r.raw('DB_UNIX_SOCKET'),
         user=r.text('DB_USER', 'policyd-rate-guard'),
-        password=r.raw('DB_PASSWORD') or '',
+        password=r.secret('DB_PASSWORD'),
         database=r.text('DB_DATABASE', 'policyd-rate-guard'),
         pool_mincached=r.integer('DB_POOL_MINCACHED', 0),
         pool_maxcached=r.integer('DB_POOL_MAXCACHED', 10),
@@ -224,11 +225,11 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         except ConfigError as e:
             errors.append(str(e))
 
-    log_file = r.optional('LOG_FILE')
+    log_file = r.raw('LOG_FILE')
     settings = Settings(
         db=db,
         webhook=webhook,
-        quota=r.integer('QUOTA', 1000),
+        quota=r.integer('QUOTA', 1000, 0, 4294967295),  # int unsigned columns
         action_text_blocked=action_text,
         fail_action='DEFER_IF_PERMIT' if fail_action == 'DEFER_IF_PERMIT' else 'DUNNO',
         listen=listen,
@@ -237,7 +238,7 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         log_console=r.flag('LOG_CONSOLE', False),
         syslog=r.flag('SYSLOG', False),
         message_retention=r.integer('MESSAGE_RETENTION', 0),
-        sentry_dsn=r.optional('SENTRY_DSN'),
+        sentry_dsn=r.raw('SENTRY_DSN'),
         sentry_environment=r.text('SENTRY_ENVIRONMENT', 'dev'),
     )
     if errors:
@@ -256,7 +257,7 @@ def load_settings(env_file: Path | None = None, environ: Mapping[str, str] | Non
     path = explicit or DEFAULT_ENV_FILE
     values: dict[str, str | None] = {}
     if path.is_file():
-        values.update(dotenv_values(path))
+        values.update(dotenv_values(path, interpolate=False))  # a $ in a password is literal
     elif explicit is not None:
         raise ConfigError(f'Env file not found: {path}')
     values.update(environ)

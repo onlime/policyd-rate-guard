@@ -70,7 +70,8 @@ class PolicyService:
         if state not in COUNTING_STATES:
             if state not in self._warned_states:
                 self._warned_states.add(state)
-                self.logger.warning(
+                # every authenticated mail passes uncounted: an ERROR, which Zabbix alerts on
+                self.logger.error(
                     'Not counting in protocol state %s: use check_policy_service in smtpd_data_restrictions '
                     '(or smtpd_end_of_data_restrictions)',
                     sanitize(state, 32),

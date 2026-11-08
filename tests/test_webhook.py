@@ -34,10 +34,10 @@ def webhook(logger: logging.Logger, **overrides: Any) -> Webhook:
 
 
 def mock_post(hook: Webhook, status: int = 200, text: str = '{"success": true}') -> MagicMock:
-    response = MagicMock(spec=requests.Response)
-    response.ok = 200 <= status < 300
+    response = requests.Response()
     response.status_code = status
-    response.text = text
+    response._content = text.encode()
+    response.encoding = 'utf-8'
     post = MagicMock(return_value=response)
     hook.session.post = post
     return post
@@ -103,3 +103,11 @@ def test_non_2xx_is_logged_truncated(logger: logging.Logger, caplog: pytest.LogC
 
 def test_session_ignores_environment(logger: logging.Logger) -> None:
     assert webhook(logger).session.trust_env is False
+
+
+def test_redirect_is_a_failure(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
+    """Redirects aren't followed (the JWT would go elsewhere), so a 302 means the notification wasn't delivered."""
+    hook = webhook(logger)
+    mock_post(hook, status=302, text='')
+    assert not hook.call(payload())
+    assert 'Webhook call failed with status code: 302' in caplog.text

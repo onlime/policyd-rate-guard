@@ -2,7 +2,6 @@
 [Unit]
 Description=PolicydRateGuard policy service socket
 Documentation=https://github.com/onlime/policyd-rate-guard
-PartOf=policyd-rate-guard.service
 
 [Socket]
 # Postfix: check_policy_service { inet:127.0.0.1:10033, timeout=10s, default_action=DUNNO }

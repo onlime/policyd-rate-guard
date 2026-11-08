@@ -75,7 +75,7 @@ def test_blocked_and_crossing_lines(tmp_path: Path, make_settings: Callable[...,
 
 @pytest.mark.usefixtures('restore_logger')
 def test_queue_ids_are_correct_under_concurrency(tmp_path: Path, make_settings: Callable[..., Settings]) -> None:
-    """F8: 0.x stored the queue ID on the shared logger, so concurrent requests logged each other's IDs."""
+    """0.x stored the queue ID on the shared logger, so concurrent requests logged each other's IDs."""
     log_file = tmp_path / 'policyd.log'
     logger = configure_logging(make_settings(log_file=log_file))
     barrier = threading.Barrier(20)

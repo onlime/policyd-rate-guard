@@ -121,7 +121,7 @@ def test_message_counter_blocks_too(
 def test_quota_changes_by_others_are_never_overwritten(
     db: Database, raw_db: Any, sender: str, make_settings: Callable[..., Settings], logger: logging.Logger
 ) -> None:
-    """F2: 0.x wrote the stale quota back, undoing a concurrent change by Airpane/support."""
+    """0.x wrote the stale quota back, undoing a concurrent change by Airpane/support."""
     svc = PolicyService(make_settings(quota=2), db, logger)
     decide(svc, sender)
     decide(svc, sender)
@@ -134,7 +134,7 @@ def test_quota_changes_by_others_are_never_overwritten(
 @pytest.mark.db
 def test_long_values_are_clamped(db: Database, raw_db: Any, sender: str, make_settings: Callable[..., Settings],
                                  logger: logging.Logger) -> None:  # fmt: skip
-    """F4: a From over 255 characters failed with 'Data too long' under strict sql_mode, after counting."""
+    """A From over 255 characters failed with 'Data too long' under strict sql_mode, after counting."""
     svc = PolicyService(make_settings(quota=0), db, logger)
     outcome = decide(svc, sender, sender='z' * 300 + '@example.com', client_name='c' * 300)
     assert outcome.action.startswith('DEFER_IF_PERMIT')
@@ -148,7 +148,7 @@ def test_long_values_are_clamped(db: Database, raw_db: Any, sender: str, make_se
 def test_concurrent_first_mails_are_all_counted(
     db: Database, raw_db: Any, sender: str, make_settings: Callable[..., Settings], logger: logging.Logger
 ) -> None:
-    """F2: in 0.x, 30 parallel first mails of a new sender were counted as 4, and 2 got DUNNO."""
+    """In 0.x, 30 parallel first mails of a new sender were counted as 4, and 2 got DUNNO."""
     svc = PolicyService(make_settings(quota=10, webhook=WEBHOOK), db, logger)
     barrier = threading.Barrier(50)
 
@@ -171,7 +171,7 @@ def test_concurrent_first_mails_are_all_counted(
 def test_lock_wait_timeout_answers_fail_action_quickly(
     db_settings: DbSettings, raw_db: Any, sender: str, make_settings: Callable[..., Settings], logger: logging.Logger
 ) -> None:
-    """F6: without timeouts, a locked row (e.g. a migration) made requests pile up indefinitely."""
+    """Without timeouts, a locked row (e.g. a migration) made requests pile up indefinitely."""
     database = Database(replace(db_settings, lock_wait_timeout=1))
     svc = PolicyService(make_settings(), database, logger)
     decide(svc, sender)
@@ -182,7 +182,7 @@ def test_lock_wait_timeout_answers_fail_action_quickly(
             cursor.execute('SELECT * FROM `ratelimits` WHERE `sender` = %s FOR UPDATE', (sender,))
         started = time.monotonic()
         assert decide(svc, sender).action == 'DUNNO'
-        assert time.monotonic() - started < 5
+        assert time.monotonic() - started < 2  # once the lock wait timeout (1 s), not retried
     finally:
         other.rollback()
         other.close()

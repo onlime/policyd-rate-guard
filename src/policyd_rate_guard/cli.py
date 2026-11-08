@@ -1,8 +1,8 @@
 """Command line interface.
 
-python -m policyd_rate_guard [--env-file PATH] [serve [--require-socket-activation]]
-python -m policyd_rate_guard [--env-file PATH] cleanup
-python -m policyd_rate_guard [--env-file PATH] check
+policyd-rate-guard [--env-file PATH] [serve [--require-socket-activation]]
+policyd-rate-guard [--env-file PATH] cleanup
+policyd-rate-guard [--env-file PATH] check
 """
 
 import argparse

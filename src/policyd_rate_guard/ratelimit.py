@@ -100,6 +100,9 @@ def count_message(conn: Connection, sender: str, rcpt_count: int, default_quota:
     """
     params = {'sender': sender, 'rcpt': rcpt_count, 'quota': default_quota}
     for attempt in range(MAX_DEADLOCK_RETRIES + 1):
+        # An explicit transaction: otherwise DBUtils transparently retries a failed statement on a new connection,
+        # where the uncommitted upsert is gone (old counters, nothing counted, no error)
+        conn.begin()
         cursor = conn.cursor()
         try:
             cursor.execute(COUNT_SQL, params)
@@ -131,6 +134,7 @@ def count_message(conn: Connection, sender: str, rcpt_count: int, default_quota:
 
 
 def store_message(conn: Connection, decision: Decision, record: MessageRecord) -> None:
+    conn.begin()
     cursor = conn.cursor()
     try:
         cursor.execute(
@@ -158,6 +162,7 @@ def store_message(conn: Connection, decision: Decision, record: MessageRecord) -
 def reset_counters(db: Database) -> int:
     """Reset all counters, and quotas that aren't locked. Returns the number of changed rows."""
     with db.connection() as conn:
+        conn.begin()
         cursor = conn.cursor()
         try:
             changed = cursor.execute(RESET_SQL)
@@ -172,6 +177,7 @@ def purge_messages(db: Database, days: int, batch_size: int = 10000) -> int:
     deleted = 0
     with db.connection() as conn:
         while True:
+            conn.begin()
             cursor = conn.cursor()
             try:
                 count = cursor.execute(PURGE_SQL, {'days': days, 'batch': batch_size})

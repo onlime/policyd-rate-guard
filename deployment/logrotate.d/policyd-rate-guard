@@ -8,7 +8,7 @@
 	compress
 	# keep yesterday's file uncompressed: the daemon may still write a few lines to it before it reopens the log
 	delaycompress
-	su policyd-rate-guard adm
-	create 0640 policyd-rate-guard adm
+	su policyd-rate-guard policyd-rate-guard
+	create 0640 policyd-rate-guard policyd-rate-guard
 	# no restart needed: the daemon reopens the file after rotation (WatchedFileHandler)
 }

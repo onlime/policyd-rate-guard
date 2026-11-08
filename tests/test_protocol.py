@@ -28,7 +28,7 @@ def test_invalid_utf8_is_replaced_not_fatal() -> None:
 
 
 def test_long_client_controlled_values_do_not_hide_sasl_username() -> None:
-    """F1: 0.x read only 2048 bytes, so padding MAIL FROM/HELO cut off sasl_username (and the limit)."""
+    """0.x read only 2048 bytes, so padding MAIL FROM/HELO cut off sasl_username (and the limit)."""
     data = postfix_request('victim@example.com', sender='x' * 1900 + '@example.com', helo_name='h' * 250)
     assert data.index(b'sasl_username=') > 2048
     assert parse_request(data).sasl_username == 'victim@example.com'

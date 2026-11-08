@@ -9,7 +9,7 @@ Type=oneshot
 User=policyd-rate-guard
 Group=policyd-rate-guard
 Environment=POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env
-ExecStart=/opt/policyd-rate-guard/venv/bin/python -m policyd_rate_guard cleanup
+ExecStart=/opt/policyd-rate-guard/venv/bin/policyd-rate-guard cleanup
 LogsDirectory=policyd-rate-guard
 LogsDirectoryMode=0750
 UMask=0027

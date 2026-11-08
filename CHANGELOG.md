@@ -19,7 +19,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 **Changed (breaking):**
 
 - Requires Python 3.13+ (Debian 13). Only PyMySQL is supported (`DB_DRIVER=sqlite3` is gone, the SQL is MySQL-specific); tested with MySQL 8.4 and 9.7 and MariaDB 12.3.
-- Package layout `src/policyd_rate_guard/`; run with `python -m policyd_rate_guard [serve|cleanup|check]`. `run.py`, `cleanup.py`, `setup.py` and `app/` are removed.
+- Package layout `src/policyd_rate_guard/`; run with the console script `venv/bin/policyd-rate-guard [serve|cleanup|check]`. `run.py`, `cleanup.py`, `setup.py` and `app/` are removed.
 - New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify`.
 - `SOCKET` only takes `host,port` (used without socket activation). A unix socket is set up in the socket unit (`ListenStream=/path`), see the README.
 - Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.

@@ -6,6 +6,7 @@ Needs E2E_SMTP_PORT (submission), E2E_DATABASE_URL and E2E_WEBHOOK_URL; skipped 
 import json
 import os
 import smtplib
+import time
 import urllib.request
 from base64 import b64decode
 from collections.abc import Iterator
@@ -64,6 +65,28 @@ def send(user: str, from_addr: str = 'sender@example.com', rcpts: list[str] | No
         smtp.sendmail(from_addr, rcpts or ['rcpt@example.org'], b'Subject: e2e\r\n\r\nTest\r\n')
 
 
+def send_bdat(user: str) -> tuple[int, bytes]:
+    """CHUNKING (BDAT) instead of DATA, as many clients use it when Postfix offers it."""
+    body = b'Subject: e2e bdat\r\n\r\nTest\r\n'
+    with smtplib.SMTP('127.0.0.1', int(os.environ['E2E_SMTP_PORT']), timeout=30) as smtp:
+        smtp.login(user, PASSWORD)
+        smtp.mail(user)
+        smtp.rcpt('rcpt@example.org')
+        smtp.putcmd('BDAT', f'{len(body)} LAST')
+        smtp.send(body)
+        return smtp.getreply()
+
+
+def webhook_calls(expected: int) -> list[Any]:
+    """The webhook runs after the reply, in its own thread: wait for it."""
+    for _ in range(50):
+        calls: list[Any] = webhook('GET')
+        if len(calls) >= expected:
+            return calls
+        time.sleep(0.1)
+    return calls
+
+
 def counters(db: Any, user: str) -> tuple[int, int]:
     with db.cursor() as cursor:
         cursor.execute('SELECT `msg_counter`, `rcpt_counter` FROM `ratelimits` WHERE `sender` = %s', (user,))
@@ -82,7 +105,7 @@ def test_quota_blocks_at_data_and_webhook_fires_once(fresh: Any, db: Any) -> Non
         assert b'Rate limit reached' in info.value.smtp_error
     assert counters(db, user) == (QUOTA + 2, QUOTA + 2)
 
-    calls = webhook('GET')
+    calls = webhook_calls(1)
     assert len(calls) == 1
     call = calls[0]
     assert call['path'] == '/api/policyd/test01@example.com'
@@ -99,8 +122,19 @@ def test_all_recipients_are_counted(fresh: Any, db: Any) -> None:
 
 
 def test_padded_client_values_are_counted(fresh: Any, db: Any) -> None:
-    """F1: with 0.x, padding MAIL FROM/HELO pushed sasl_username beyond the 2048 bytes it read: not counted."""
+    """With 0.x, padding MAIL FROM/HELO pushed sasl_username beyond the 2048 bytes it read: not counted."""
     user = fresh('test03@example.com')
     send(user, from_addr='x' * 1900 + '@example.com')
     send(user, helo='h' * 60 + '.' + 'e' * 60 + '.' + 'l' * 60 + '.example')
     assert counters(db, user) == (2, 2)
+
+
+def test_bdat_is_counted_and_blocked(fresh: Any, db: Any) -> None:
+    """Postfix applies smtpd_data_restrictions to BDAT too: no way around the limit with CHUNKING."""
+    user = fresh('test02@example.com')
+    for _ in range(QUOTA):
+        assert send_bdat(user)[0] == 250
+    code, message = send_bdat(user)
+    assert code == 450
+    assert b'Rate limit reached' in message
+    assert counters(db, user) == (QUOTA + 1, QUOTA + 1)

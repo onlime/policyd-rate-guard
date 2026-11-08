@@ -93,7 +93,7 @@ PolicydRateGuard ships its recommended production setup in `deployment/`: a syst
    $ install -m 0600 -o root -g root yoyo.ini.example /etc/policyd-rate-guard/yoyo.ini
    $ editor /etc/policyd-rate-guard/policyd-rate-guard.env /etc/policyd-rate-guard/yoyo.ini
    $ venv/bin/yoyo apply --config /etc/policyd-rate-guard/yoyo.ini
-   $ POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env venv/bin/python -m policyd_rate_guard check
+   $ POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env venv/bin/policyd-rate-guard check
    ```
 
 4. systemd units and log rotation from `deployment/` (for a unix socket instead of `127.0.0.1:10033`, see below):
@@ -141,15 +141,16 @@ Use role v1.0.0, which does all of this. Manually:
 1. Stop and disable the old service, which occupies port 10033: `systemctl disable --now policyd-rate-guard.service`.
 2. Don't reuse the old checkout: 0.x deployments made it owned by `postfix`, so it must be considered untrusted. Move it aside, clone the release fresh as root and create a new venv (steps 2–4 above).
 3. Move the configuration from `/opt/policyd-rate-guard/.env` to `/etc/policyd-rate-guard/policyd-rate-guard.env`, and `yoyo.ini` to `/etc/policyd-rate-guard/yoyo.ini` with an absolute `sources = /opt/policyd-rate-guard/database/migrations`. Delete the old files, they were world-readable: rotate the passwords and the webhook secret.
-4. Replace `run.py`/`cleanup.py` in custom units or scripts with `python -m policyd_rate_guard serve` / `cleanup`.
+4. Replace `run.py`/`cleanup.py` in custom units or scripts with `venv/bin/policyd-rate-guard serve` / `cleanup`.
 5. Set `MESSAGE_RETENTION` if you haven't: 0.x kept all messages forever by default. The first cleanup purges the backlog in batches.
 6. A unix socket is no longer bound by the daemon (`SOCKET=/path`): set it up in the socket unit instead (`ListenStream=`, see above).
+7. The webhook always sends a JWT: remove `WEBHOOK_USE_JWT=False` and a `{token}` in `WEBHOOK_URL`, and verify the JWT on the receiving side (see below).
 
 The database schema is unchanged.
 
 ## Configuration ⚙️
 
-All settings are environment variables, usually from `/etc/policyd-rate-guard/policyd-rate-guard.env` (python-dotenv syntax). Another file can be given with `--env-file` or `POLICYD_ENV_FILE`; variables in the process environment take precedence. Invalid values stop the daemon at startup with a list of all errors; `python -m policyd_rate_guard check` validates the configuration and the database connection.
+All settings are environment variables, usually from `/etc/policyd-rate-guard/policyd-rate-guard.env` (python-dotenv syntax). Another file can be given with `--env-file` or `POLICYD_ENV_FILE`; variables in the process environment take precedence. Invalid values stop the daemon at startup with a list of all errors; `policyd-rate-guard check` validates the configuration and the database connection.
 
 | Variable | Default | Description |
 | --- | --- | --- |
@@ -279,7 +280,7 @@ $ cd policyd-rate-guard
 $ python3 -m venv .venv
 $ . .venv/bin/activate
 (.venv)$ pip install --group dev -e .
-(.venv)$ pip install pre-commit && pre-commit install    # optional: ruff on git push, as in airpane-agent
+(.venv)$ pip install pre-commit && pre-commit install    # optional: ruff on git push
 ```
 
 The following commands run in the activated venv.

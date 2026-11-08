@@ -45,6 +45,7 @@ class PolicyServer:
         self.db_executor = ThreadPoolExecutor(settings.db.pool_maxconnections, thread_name_prefix='policy-db')
         self._connections: dict[asyncio.Task[None], bool] = {}  # task -> busy
         self._servers: list[asyncio.Server] = []
+        self._stopping = False
 
     async def start(self, sockets: list[socket.socket]) -> None:
         loop = asyncio.get_running_loop()
@@ -71,6 +72,7 @@ class PolicyServer:
             await self.shutdown()
 
     async def shutdown(self) -> None:
+        self._stopping = True
         for server in self._servers:
             server.close()
         # Idle connections can go right away, busy ones may finish their request
@@ -115,8 +117,9 @@ class PolicyServer:
         self, task: asyncio.Task[None], reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) -> None:
         # Postfix keeps the connection and sends further requests on it ("the server must not close the
-        # connection unless there was an error"), so loop until the client closes or goes idle.
-        while True:
+        # connection unless there was an error"), so loop until the client closes or goes idle. On shutdown, close
+        # after the reply: a request cut off later would be counted without an answer, and counted again on retry.
+        while not self._stopping:
             try:
                 async with asyncio.timeout(IDLE_TIMEOUT):
                     data = await reader.readuntil(b'\n\n')

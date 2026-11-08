@@ -16,4 +16,4 @@ RUN python3 -m venv venv \
 
 USER policyd-rate-guard
 EXPOSE 10033
-CMD ["/opt/policyd-rate-guard/venv/bin/python", "-m", "policyd_rate_guard", "serve"]
+CMD ["/opt/policyd-rate-guard/venv/bin/policyd-rate-guard", "serve"]
