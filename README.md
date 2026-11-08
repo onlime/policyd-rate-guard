@@ -290,20 +290,49 @@ The following commands run in the activated venv.
 
 ### Tests
 
-```bash
-# unit tests (database tests are skipped)
-$ pytest
+The tests come in three levels. Each needs a bit more and tests more of the real thing; CI runs all of them.
 
-# with a database: TEST_DATABASE_URL points to a server where a temporary database can be created
+| Level | What it tests | Needs | Takes |
+| --- | --- | --- | --- |
+| Unit | Policy protocol parser, configuration, logging, webhook, Sentry scrubbing, the asyncio server, systemd socket activation | Nothing | Seconds |
+| Database | Counting and blocking, 50 parallel first mails of a new sender, quota changes by other tools, the nightly reset and purge, migrations, the CLI (`check`, `cleanup`) | Docker, or any MySQL 8.4+ or MariaDB server | Seconds |
+| End-to-end | Real mails through Postfix 3.10 with SASL login: the SMTP reply, the counters, the `messages` row, the log line and the webhook, for a set of mails with To/Cc/Bcc recipients and edge cases | Docker | About a minute (the first build takes a few) |
+
+**Unit tests** run without any setup. Tests that need a database or Postfix are skipped and listed as `SKIPPED` with the reason:
+
+```bash
+$ pytest
+$ pytest tests/test_protocol.py              # one file
+$ pytest -k webhook -x                       # tests matching "webhook", stop at the first failure
+```
+
+**Database tests** need `TEST_DATABASE_URL`, a server where the user may create databases: each test run creates a fresh database, applies the migrations and drops it at the end. The compose stack has one (MySQL 8.4 on port 13312):
+
+```bash
 $ docker compose up -d --wait db
 $ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:13312 pytest --cov
+$ docker compose down
+```
 
-# end-to-end through a real Postfix (Debian 13) with SASL users test01..test03@example.com / Example1234
+`--cov` reports the test coverage and fails below 95%, which only the unit and database tests together reach. CI runs them against MySQL 8.4, MySQL 9.7 and MariaDB 12.3 with Python 3.13, and against MySQL 8.4 with Python 3.14. To try another server locally, e.g. MariaDB:
+
+```bash
+$ docker run -d --name policyd-test-mariadb -p 13313:3306 -e MARIADB_ROOT_PASSWORD=test mariadb:12.3
+$ sleep 15                                   # until the server accepts connections
+$ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:13313 pytest
+$ docker rm -f policyd-test-mariadb
+```
+
+**End-to-end tests** (`tests/e2e`) send real mails through the compose stack: Postfix on Debian 13 with SASL users `test01@example.com` to `test03@example.com` (password `Example1234`), the daemon, the database and a webhook receiver that records its calls. They need the stack's ports and the three `E2E_` variables:
+
+```bash
 $ docker compose up -d --build --wait
 $ E2E_SMTP_PORT=1587 E2E_DATABASE_URL=mysql://root:test@127.0.0.1:13312/policyd-rate-guard \
     E2E_WEBHOOK_URL=http://127.0.0.1:18080 pytest tests/e2e
 $ docker compose down
 ```
+
+On GitHub, the end-to-end tests are a separate workflow, started by hand (Actions → E2E → Run workflow).
 
 The compose stack is also handy to try things by hand: submission on `localhost:1587` (e.g. `swaks --server localhost:1587 --auth PLAIN --auth-user test01@example.com --auth-password Example1234 --to rcpt@example.org`), the daemon's log with `docker compose logs -f policyd`, recorded webhook calls on `http://localhost:18080/calls`.
 
