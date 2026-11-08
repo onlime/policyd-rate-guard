@@ -1,0 +1,18 @@
+[Unit]
+Description=PolicydRateGuard policy service socket
+Documentation=https://github.com/onlime/policyd-rate-guard
+PartOf=policyd-rate-guard.service
+
+[Socket]
+# Postfix: check_policy_service { inet:127.0.0.1:10033, timeout=10s, default_action=DUNNO }
+ListenStream=127.0.0.1:10033
+# Alternative: a unix socket only Postfix can connect to (Postfix: unix:private/policyd-rate-guard)
+#ListenStream=/var/spool/postfix/private/policyd-rate-guard
+#SocketUser=postfix
+#SocketGroup=postfix
+#SocketMode=0600
+Backlog=256
+NoDelay=true
+
+[Install]
+WantedBy=sockets.target

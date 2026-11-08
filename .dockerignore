@@ -1,7 +1,6 @@
-.git
-.env
-.env.*
-!.env.docker
-.gitignore
-docker-compose.yml
-README.md
+# Only what the image needs (allowlist)
+*
+!requirements.txt
+!database/
+!src/
+**/__pycache__

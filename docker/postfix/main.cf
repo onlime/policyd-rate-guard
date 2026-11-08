@@ -1,0 +1,28 @@
+# End-to-end test configuration: SASL submission, the policy service as on our MX hosts, all mail discarded.
+compatibility_level = 3.10
+myhostname = mx.example.test
+myorigin = /etc/mailname
+mydestination =
+inet_interfaces = all
+inet_protocols = ipv4
+mynetworks = 127.0.0.0/8
+maillog_file = /dev/stdout
+smtputf8_enable = yes
+
+smtpd_sasl_auth_enable = yes
+smtpd_sasl_type = cyrus
+smtpd_sasl_path = smtpd
+smtpd_tls_security_level = none
+smtpd_relay_restrictions = permit_sasl_authenticated, reject
+smtpd_recipient_restrictions = permit_sasl_authenticated, reject
+
+smtpd_restriction_classes = policyd_rate_guard
+policyd_rate_guard = check_policy_service { inet:policyd:10033, timeout=10s, default_action=DUNNO }
+smtpd_data_restrictions =
+        reject_unauth_pipelining,
+        policyd_rate_guard,
+        permit
+
+default_transport = discard:e2e
+relay_transport = discard:e2e
+local_transport = discard:e2e

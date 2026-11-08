@@ -1,14 +1,56 @@
 [Unit]
-Description=PolicydRateGuard
-After=syslog.target network.target
+Description=PolicydRateGuard sender rate limit policy daemon for Postfix
+Documentation=https://github.com/onlime/policyd-rate-guard
+# The socket is created by systemd and survives restarts: Postfix's connections queue up instead of failing
+Requires=policyd-rate-guard.socket
+After=policyd-rate-guard.socket network.target mysql.service mariadb.service
 
 [Service]
-Type=simple
-WorkingDirectory=/opt/policyd-rate-guard
-ExecStart=/opt/policyd-rate-guard/venv/bin/python /opt/policyd-rate-guard/run.py
-KillSignal=SIGINT
+Type=notify
+User=policyd-rate-guard
+Group=policyd-rate-guard
+Environment=POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env
+ExecStart=/opt/policyd-rate-guard/venv/bin/python -m policyd_rate_guard serve --require-socket-activation
 Restart=on-failure
-User=postfix
+RestartSec=2s
+WatchdogSec=30s
+TimeoutStopSec=20s
+LimitNOFILE=8192
+LogsDirectory=policyd-rate-guard
+LogsDirectoryMode=0750
+UMask=0027
+
+# Hardening, see `systemd-analyze security policyd-rate-guard.service`
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectProc=invisible
+ProcSubset=pid
+ProtectClock=yes
+ProtectHostname=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+KeyringMode=private
+DevicePolicy=closed
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# EPERM instead of SIGSYS: a killed daemon means Postfix's default_action, i.e. no rate limit
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target

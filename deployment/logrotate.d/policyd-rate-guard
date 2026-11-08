@@ -5,10 +5,9 @@
 	missingok
 	notifempty
 	compress
-	# delaycompress
-	create 644 postfix postfix
-	sharedscripts
-	postrotate
-		if [ -f /bin/systemctl ] ; then systemctl restart policyd-rate-guard.service ; else service policyd-rate-guard restart >/dev/null 2>&1 ; fi || true
-	endscript
+	# keep yesterday's file uncompressed: the daemon may still write a few lines to it before it reopens the log
+	delaycompress
+	su policyd-rate-guard adm
+	create 0640 policyd-rate-guard adm
+	# no restart needed: the daemon reopens the file after rotation (WatchedFileHandler)
 }
