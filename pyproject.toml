@@ -1,0 +1,159 @@
+[project]
+name = "policyd-rate-guard"
+dynamic = ["version"]
+description = "A slick sender rate limit policy daemon for Postfix, written in Python."
+readme = "README.md"
+license = "GPL-3.0-only"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Onlime GmbH", email = "info@onlime.ch" },
+]
+requires-python = ">=3.13"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: No Input/Output (Daemon)",
+    "Intended Audience :: System Administrators",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Communications :: Email :: Filters",
+    "Topic :: Communications :: Email :: Mail Transport Agents",
+    "Typing :: Typed",
+]
+keywords = ["postfix", "policy", "rate limit", "smtp", "email"]
+dependencies = [
+    # PyMySQL needs cryptography for caching_sha2_password full authentication over TCP
+    "cryptography>=46",
+    "DBUtils>=3.1",
+    # 1.1.1 fixes CVE-2024-36039 (SQL injection)
+    "PyMySQL>=1.1.1",
+    "PyJWT>=2.10",
+    "python-dotenv>=1.1",
+    # 2.32.4 fixes CVE-2024-47081 (.netrc credential leak)
+    "requests>=2.32.4",
+    # data_collection option (replaces send_default_pii)
+    "sentry-sdk>=2.74",
+    "yoyo-migrations>=9.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/onlime/policyd-rate-guard"
+Changelog = "https://github.com/onlime/policyd-rate-guard/blob/main/CHANGELOG.md"
+Issues = "https://github.com/onlime/policyd-rate-guard/issues"
+
+[project.scripts]
+policyd-rate-guard = "policyd_rate_guard.cli:main"
+
+[dependency-groups]
+dev = [
+    "hypothesis>=6.140",
+    "mypy>=1.18",
+    "pip-audit>=2.9",
+    "pytest>=8.4",
+    "pytest-asyncio>=1.2",
+    "pytest-cov>=7.0",
+    "ruff>=0.14",
+    "types-PyMySQL>=1.1",
+    "types-requests>=2.32",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "src/policyd_rate_guard/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/policyd_rate_guard"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "database", "deployment", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[tool.uv]
+# The deployment artifact requirements.txt is exported from uv.lock, see README "Dependencies".
+default-groups = ["dev"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W", "F",  # pycodestyle, pyflakes
+    "I",            # isort
+    "UP",           # pyupgrade
+    "B",            # bugbear
+    "S",            # bandit (security)
+    "SIM",          # simplify
+    "C4",           # comprehensions
+    "PTH",          # pathlib
+    "RET",          # return
+    "RUF",          # ruff-specific
+    "PL",           # pylint
+    "LOG", "G",     # logging
+    "DTZ",          # timezone-aware datetimes
+    "T20",          # no print
+    "ASYNC",        # async pitfalls
+    "BLE",          # blind except (each one is deliberate and annotated)
+]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915",  # complexity counts are judged in review
+    "PLR2004",  # magic values
+    "S608",     # SQL is built from constants only, values are always bound parameters
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "S311", "PLC0415", "T20", "DTZ", "ASYNC240"]
+
+[tool.ruff.format]
+quote-style = "single"
+
+[tool.mypy]
+python_version = "3.13"
+platform = "linux"
+strict = true
+files = ["src", "tests"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["dbutils.*", "yoyo.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+minversion = "8.4"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "db: needs a MySQL/MariaDB server (TEST_DATABASE_URL)",
+    "e2e: needs the docker compose stack with a real Postfix (E2E_SMTP_HOST)",
+]
+filterwarnings = [
+    "error",
+    # yoyo-migrations 9.0 still passes db= and passwd= to PyMySQL
+    "ignore:'db' is deprecated, use 'database':DeprecationWarning",
+    "ignore:'passwd' is deprecated, use 'password':DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["policyd_rate_guard"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 90
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
