@@ -1,3 +1,4 @@
+# PolicydRateGuard, recommended setup: see README.md. The Ansible role onlime.policyd_rate_guard installs the same from its templates.
 [Unit]
 Description=PolicydRateGuard sender rate limit policy daemon for Postfix
 Documentation=https://github.com/onlime/policyd-rate-guard

@@ -32,7 +32,7 @@ But let me name some features that make it stand out from other solutions:
 - **Block action message** `"Rate limit reached, retry later"` can be configured.
 - Lots of configuration params via a simple `.env` file, all validated at startup.
 - **Secure setup:** a dedicated unprivileged system user, systemd sandboxing and socket activation, no secrets in error reports.
-- **Supports external API webhooks**, authenticated with a JWT (or the deprecated simple token). The webhook is triggered when a sender reaches the quota for the first time in a period, so you can send out notifications through your own or any 3rd-party app.
+- **Supports external API webhooks**, authenticated with a JWT. The webhook is triggered when a sender reaches the quota for the first time in a period, so you can send out notifications through your own or any 3rd-party app.
 - **Sentry** integration for exception reporting.
 - A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [DBUtils](https://webwareforpython.github.io/DBUtils/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/), plus requests, PyJWT and sentry-sdk), installed with plain `pip` in a virtual environment. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on future major system upgrades.
 - Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
@@ -46,8 +46,10 @@ But let me name some features that make it stand out from other solutions:
 
 ## Production install 🚀
 
-> [!IMPORTANT]
-> Use the **[Ansible Galaxy](https://galaxy.ansible.com/onlime/policyd_rate_guard) role [`onlime.policyd_rate_guard`](https://github.com/onlime/ansible-role-policyd-rate-guard)**. It does all of the following, including the upgrade from 0.x:
+PolicydRateGuard ships its recommended production setup in `deployment/`: a systemd socket unit (the listening socket survives restarts), a hardened service running as its own user, the daily cleanup timer and a logrotate config. The steps below install it.
+
+> [!TIP]
+> To deploy with Ansible, use the role **[`onlime.policyd_rate_guard`](https://github.com/onlime/ansible-role-policyd-rate-guard)** from [Ansible Galaxy](https://galaxy.ansible.com/onlime/policyd_rate_guard). It does all of the following with the same units, including the upgrade from 0.x:
 >
 > ```bash
 > $ ansible-galaxy role install onlime.policyd_rate_guard
@@ -58,9 +60,10 @@ But let me name some features that make it stand out from other solutions:
 >   roles:
 >     - role: onlime.policyd_rate_guard
 >       policyd_mysql_pass: '{{ vault_policyd_mysql_pass }}'
+>       policyd_yoyo_mysql_pass: '{{ vault_policyd_yoyo_mysql_pass }}'
 > ```
 
-### Manual setup
+### Setup
 
 1. Database and users: one for the daemon (data only), one for the migrations (schema changes):
 
@@ -93,7 +96,7 @@ But let me name some features that make it stand out from other solutions:
    $ POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env venv/bin/python -m policyd_rate_guard check
    ```
 
-4. systemd units and log rotation:
+4. systemd units and log rotation from `deployment/` (for a unix socket instead of `127.0.0.1:10033`, see below):
 
    ```bash
    $ cp deployment/systemd/* /etc/systemd/system/
@@ -163,11 +166,10 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOG_FILE` | | Log file, e.g. `/var/log/policyd-rate-guard/policyd-rate-guard.log` |
 | `LOG_CONSOLE`, `SYSLOG` | `False` | Log to stderr (the journal under systemd) and/or syslog (`LOG_MAIL`). Without any of `LOG_FILE`, `LOG_CONSOLE`, `SYSLOG`, logs go to stderr. |
-| `LOG_MSG_PREFIX` | `False` | Prefix log lines with file and function name (debugging) |
 | `MESSAGE_RETENTION` | `0` | Days to keep rows in `messages`; `0` keeps them forever |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | , `dev` | Error reporting to [Sentry](https://sentry.io/) |
 | `WEBHOOK_ENABLED` | `False` | Call a webhook when a sender reaches the quota, see below |
-| `WEBHOOK_URL`, `WEBHOOK_SECRET`, `WEBHOOK_USE_JWT` | | Webhook URL, shared secret (base64), JWT authentication |
+| `WEBHOOK_URL`, `WEBHOOK_SECRET` | | Webhook URL, shared secret (base64) for the JWT |
 | `WEBHOOK_ALLOW_HTTP` | `False` | Allow `http://` webhook URLs (local development only) |
 
 The log line of each counted message has this format (scripts may rely on it):
@@ -200,7 +202,6 @@ PolicydRateGuard can call an external API when a sender reaches the quota, once 
 
 ```ini
 WEBHOOK_ENABLED=True
-WEBHOOK_USE_JWT=True
 WEBHOOK_URL="https://example.com/api/policyd/{sender}"
 WEBHOOK_SECRET="Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20="
 ```
@@ -212,7 +213,7 @@ Every key of the JSON object can be used as `{placeholder}` in `WEBHOOK_URL` (UR
 >>> base64.b64encode(secrets.token_bytes(32))
 ```
 
-**JWT in the Authorization header (recommended):** with `WEBHOOK_USE_JWT=True` and no `{token}` placeholder, PolicydRateGuard sends `Authorization: Bearer <JWT>`, signed with HS256 and the base64-decoded secret, valid for 60 s:
+PolicydRateGuard authenticates with a JWT in the `Authorization: Bearer <JWT>` header, signed with HS256 and the base64-decoded secret, valid for 60 s:
 
 ```python
 payload = {
@@ -264,8 +265,6 @@ class AccessApiWebhookPolicyd
     }
 }
 ```
-
-**Simple token (deprecated):** with `WEBHOOK_USE_JWT=False` and a `{token}` placeholder (`https://example.com/api/policyd/{sender}?token={token}`), the token is `sha256(secret + sender)`. It never changes and ends up in access logs, so anyone who sees it once can replay it. The daemon logs a warning at startup; switch to JWT.
 
 > [!NOTE]
 > For a webhook running on your development machine, use `http://host.docker.internal:8080/…` in `.env.docker` together with `WEBHOOK_ALLOW_HTTP=True`.

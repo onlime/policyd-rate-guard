@@ -23,8 +23,9 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify`.
 - `SOCKET` only takes `host,port` (used without socket activation). A unix socket is set up in the socket unit (`ListenStream=/path`), see the README.
 - Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.
-- `LOG_MSG_PREFIX` defaults to `False`.
-- Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer. The simple token (`WEBHOOK_USE_JWT=False`) is deprecated, use JWT.
+- `LOG_MSG_PREFIX` is removed. The log line format is unchanged; the queue ID prefix stays.
+- Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer.
+- Webhook: the simple token (`sha256(secret + sender)` in the `{token}` placeholder, static and replayable) is removed. The webhook always sends a JWT in the `Authorization: Bearer` header, with the same claims as before; `WEBHOOK_USE_JWT=False` and `{token}` are rejected at startup. `WEBHOOK_SECRET` must be base64 encoded.
 - `DB_POOL_MAXSHARED` is ignored (PyMySQL connections can't be shared).
 
 **Improved:**

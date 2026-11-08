@@ -49,7 +49,7 @@ def test_wrong_protocol_state_is_warned_once(
 def test_db_failure_answers_fail_action(
     fail_action: str, make_settings: Callable[..., Settings], logger: logging.Logger, caplog: pytest.LogCaptureFixture
 ) -> None:
-    caplog.handler.addFilter(ContextFilter(caller_prefix=False))
+    caplog.handler.addFilter(ContextFilter())
     caplog.handler.setFormatter(logging.Formatter('%(queue_id_prefix)s%(message)s'))
     db = MagicMock()
     db.connection.side_effect = ConnectionError('MySQL server has gone away')

@@ -1,3 +1,4 @@
+# PolicydRateGuard, recommended setup: see README.md. The Ansible role onlime.policyd_rate_guard installs the same from its templates.
 /var/log/policyd-rate-guard/policyd-rate-guard.log {
 	rotate 365
 	daily

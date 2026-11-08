@@ -60,8 +60,6 @@ def serve(settings: Settings, logger: logging.Logger, require_socket_activation:
         sockets = [bind_listen_socket(settings)]
     db = Database(settings.db)
     webhook = Webhook(settings.webhook, logger) if settings.webhook.enabled else None
-    if webhook and not settings.webhook.use_jwt:
-        logger.warning('Webhook: the simple token is deprecated, switch to WEBHOOK_USE_JWT=True')
     server = PolicyServer(settings, PolicyService(settings, db, logger), webhook, logger)
     logger.info('policyd-rate-guard %s starting', __version__)
     try:

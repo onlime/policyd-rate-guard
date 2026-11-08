@@ -4,7 +4,6 @@ It runs after the reply has been sent to Postfix, in its own thread, with timeou
 neither delay the policy decision nor turn a block into DUNNO.
 """
 
-import hashlib
 import logging
 from base64 import b64decode
 from dataclasses import asdict, dataclass
@@ -50,28 +49,21 @@ class Webhook:
         self.session.trust_env = False  # no proxies or .netrc credentials from the environment
         self.user_agent = f'policyd-rate-guard/{__version__}'
 
-    def simple_token(self, sender: str) -> str:
-        """Legacy token: sha256(secret + sender). Static and replayable, use JWT instead."""
-        return hashlib.sha256(f'{self.settings.secret}{sender}'.encode()).hexdigest()
-
     def jwt_token(self, sender: str, now: datetime | None = None) -> str:
         issued = now or datetime.now(tz=UTC)
         claims = {'sub': sender, 'iss': JWT_ISSUER, 'iat': issued, 'nbf': issued, 'exp': issued + JWT_LIFETIME}
         return jwt.encode(claims, b64decode(self.settings.secret), algorithm='HS256')
 
     def build_request(self, payload: WebhookPayload) -> tuple[str, dict[str, str]]:
-        data = asdict(payload)
-        token = self.jwt_token(payload.sender) if self.settings.use_jwt else self.simple_token(payload.sender)
-        headers = {'User-Agent': self.user_agent, 'Accept': 'application/json'}
-        placeholders = {key: quote('' if value is None else str(value), safe='@') for key, value in data.items()}
-        if '{token}' in self.settings.url:
-            # Variant 1: token as query parameter (usually the simple token)
-            url = self.settings.url.format(**placeholders, token=quote(token, safe=''))
-        else:
-            # Variant 2: token as bearer token (usually JWT)
-            headers['Authorization'] = f'Bearer {token}'
-            url = self.settings.url.format(**placeholders)
-        return url, headers
+        placeholders = {
+            key: quote('' if value is None else str(value), safe='@') for key, value in asdict(payload).items()
+        }
+        headers = {
+            'User-Agent': self.user_agent,
+            'Accept': 'application/json',
+            'Authorization': f'Bearer {self.jwt_token(payload.sender)}',
+        }
+        return self.settings.url.format(**placeholders), headers
 
     def call(self, payload: WebhookPayload) -> bool:
         """POST the payload. Never raises; returns whether the webhook accepted it."""

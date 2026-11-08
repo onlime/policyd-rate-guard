@@ -19,8 +19,8 @@ from .webhook import WebhookPayload
 
 DEFAULT_ENV_FILE = Path('/etc/policyd-rate-guard/policyd-rate-guard.env')
 
-# Keys of the webhook payload, usable as {placeholder} in WEBHOOK_URL (plus {token})
-WEBHOOK_PLACEHOLDERS = frozenset(f.name for f in fields(WebhookPayload)) | {'token'}
+# Keys of the webhook payload, usable as {placeholder} in WEBHOOK_URL
+WEBHOOK_PLACEHOLDERS = frozenset(f.name for f in fields(WebhookPayload))
 
 _TRUE = frozenset({'y', 'yes', 't', 'true', 'on', '1'})
 _FALSE = frozenset({'n', 'no', 'f', 'false', 'off', '0', ''})
@@ -58,7 +58,6 @@ class WebhookSettings:
     enabled: bool = False
     url: str = ''
     secret: str = field(default='', repr=False)
-    use_jwt: bool = False
     allow_http: bool = False
 
 
@@ -72,7 +71,6 @@ class Settings:
     listen: TcpAddress = field(default_factory=lambda: TcpAddress('127.0.0.1', 10033))
     log_level: str = 'INFO'
     log_file: Path | None = None
-    log_msg_prefix: bool = False
     log_console: bool = False
     syslog: bool = False
     message_retention: int = 0
@@ -166,11 +164,11 @@ def _validate_webhook(webhook: WebhookSettings, errors: list[str]) -> None:
                 errors.append(f'WEBHOOK_URL: unknown placeholder(s) {sorted(unknown)}')
     if not webhook.secret:
         errors.append('WEBHOOK_SECRET: required when WEBHOOK_ENABLED=True')
-    elif webhook.use_jwt:
+    else:
         try:
             b64decode(webhook.secret, validate=True)
         except binascii.Error:
-            errors.append('WEBHOOK_SECRET: must be base64 encoded when WEBHOOK_USE_JWT=True')
+            errors.append('WEBHOOK_SECRET: must be base64 encoded')
 
 
 def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
@@ -199,10 +197,11 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         enabled=r.flag('WEBHOOK_ENABLED', False),
         url=r.text('WEBHOOK_URL', ''),
         secret=r.raw('WEBHOOK_SECRET') or '',
-        use_jwt=r.flag('WEBHOOK_USE_JWT', False),
         allow_http=r.flag('WEBHOOK_ALLOW_HTTP', False),
     )
     _validate_webhook(webhook, errors)
+    if webhook.enabled and not r.flag('WEBHOOK_USE_JWT', True):
+        errors.append('WEBHOOK_USE_JWT: the simple token was removed in 1.0, the webhook always sends a JWT')
 
     fail_action = r.text('FAIL_ACTION', 'DUNNO').upper()
     if fail_action not in _ACTIONS:
@@ -235,7 +234,6 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         listen=listen,
         log_level=log_level,
         log_file=Path(log_file) if log_file else None,
-        log_msg_prefix=r.flag('LOG_MSG_PREFIX', False),
         log_console=r.flag('LOG_CONSOLE', False),
         syslog=r.flag('SYSLOG', False),
         message_retention=r.integer('MESSAGE_RETENTION', 0),

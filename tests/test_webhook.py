@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from base64 import b64decode
 from datetime import UTC, datetime
@@ -27,7 +26,7 @@ def payload(sender: str = 'test@example.com') -> WebhookPayload:
 def webhook(logger: logging.Logger, **overrides: Any) -> Webhook:
     values: dict[str, Any] = {
         'enabled': True,
-        'url': 'https://example.com/api/policyd/{sender}?token={token}',
+        'url': 'https://example.com/api/policyd/{sender}',
         'secret': SECRET,
     }
     settings = WebhookSettings(**(values | overrides))
@@ -44,46 +43,31 @@ def mock_post(hook: Webhook, status: int = 200, text: str = '{"success": true}')
     return post
 
 
-def test_simple_token_is_unchanged_from_0x(logger: logging.Logger) -> None:
-    hook = webhook(logger)
-    expected = '34caa5c52fce98bc56fa3bfd8274a92328f09a6e0b27da2b5d89c1b5c5ed05c5'
-    assert hook.simple_token('test@example.com') == expected
-    assert expected == hashlib.sha256(f'{SECRET}test@example.com'.encode()).hexdigest()
-
-
-def test_call_with_simple_token_in_query(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
+def test_call_with_jwt_bearer(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
     hook = webhook(logger)
     post = mock_post(hook)
     with caplog.at_level(logging.INFO):
         assert hook.call(payload())
-    token = hook.simple_token('test@example.com')
-    url = post.call_args.args[0]
-    assert url == f'https://example.com/api/policyd/test@example.com?token={token}'
+    assert post.call_args.args[0] == 'https://example.com/api/policyd/test@example.com'
     kwargs = post.call_args.kwargs
-    assert kwargs['headers'] == {'User-Agent': f'policyd-rate-guard/{__version__}', 'Accept': 'application/json'}
-    assert kwargs['json']['sender'] == 'test@example.com'
-    assert kwargs['json']['rcpt_count'] == 3
-    assert kwargs['timeout'] == (3.0, 10.0)
-    assert kwargs['allow_redirects'] is False
-    assert 'Webhook call successful: POST https://example.com/api/policyd/{sender}?token={token}' in caplog.text
-    assert token not in caplog.text
-
-
-def test_call_with_jwt_bearer(logger: logging.Logger) -> None:
-    hook = webhook(logger, url='https://example.com/api/policyd/{sender}', use_jwt=True)
-    post = mock_post(hook)
-    assert hook.call(payload())
-    headers = post.call_args.kwargs['headers']
-    token = headers['Authorization'].removeprefix('Bearer ')
+    headers = kwargs['headers']
+    token = headers.pop('Authorization').removeprefix('Bearer ')
+    assert headers == {'User-Agent': f'policyd-rate-guard/{__version__}', 'Accept': 'application/json'}
     claims = jwt.decode(token, b64decode(SECRET), algorithms=['HS256'], issuer='policyd-rate-guard')
     assert claims['sub'] == 'test@example.com'
     assert claims['exp'] - claims['iat'] == 60
     assert claims['nbf'] == claims['iat']
+    assert kwargs['json']['sender'] == 'test@example.com'
+    assert kwargs['json']['rcpt_count'] == 3
+    assert kwargs['timeout'] == (3.0, 10.0)
+    assert kwargs['allow_redirects'] is False
+    assert 'Webhook call successful: POST https://example.com/api/policyd/{sender}' in caplog.text
+    assert token not in caplog.text
 
 
 def test_jwt_claims_are_unchanged(logger: logging.Logger) -> None:
     now = datetime(2026, 11, 8, 12, 0, tzinfo=UTC)
-    token = webhook(logger, use_jwt=True).jwt_token('a@example.com', now=now)
+    token = webhook(logger).jwt_token('a@example.com', now=now)
     claims = jwt.decode(
         token,
         b64decode(SECRET),
@@ -95,22 +79,19 @@ def test_jwt_claims_are_unchanged(logger: logging.Logger) -> None:
 
 
 def test_placeholders_are_url_encoded(logger: logging.Logger) -> None:
-    hook = webhook(logger, url='https://example.com/api/{sender}/{client_name}?q={token}')
+    hook = webhook(logger, url='https://example.com/api/{sender}/{client_name}?msgid={msgid}')
     url, _ = hook.build_request(payload(sender='a/../b?c#d@example.com'))
-    assert url.startswith('https://example.com/api/a%2F..%2Fb%3Fc%23d@example.com/unknown?q=')
+    assert url == 'https://example.com/api/a%2F..%2Fb%3Fc%23d@example.com/unknown?msgid=TEST1234567'
 
 
-def test_failed_call_logs_no_token(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
+def test_failed_call_logs_only_the_url_template(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
     hook = webhook(logger)
-    token = hook.simple_token('test@example.com')
     hook.session.post = MagicMock(
-        side_effect=requests.ConnectionError(f'Max retries exceeded with url: /?token={token}')
+        side_effect=requests.ConnectionError('Max retries exceeded with url: /api/policyd/test@example.com')
     )
     assert not hook.call(payload())
-    assert 'Webhook call failed: POST https://example.com/api/policyd/{sender}?token={token} (ConnectionError)' in (
-        caplog.text
-    )
-    assert token not in caplog.text
+    assert 'Webhook call failed: POST https://example.com/api/policyd/{sender} (ConnectionError)' in caplog.text
+    assert 'test@example.com' not in caplog.text
 
 
 def test_non_2xx_is_logged_truncated(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:

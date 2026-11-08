@@ -23,11 +23,10 @@ classifiers = [
 ]
 keywords = ["postfix", "policy", "rate limit", "smtp", "email"]
 dependencies = [
-    # PyMySQL needs cryptography for caching_sha2_password full authentication over TCP
-    "cryptography==50.0.*",
     "DBUtils==3.2.*",
     "PyJWT==2.15.*",
-    "PyMySQL==1.2.*",
+    # rsa: cryptography, for caching_sha2_password authentication over TCP
+    "PyMySQL[rsa]==1.2.*",
     "python-dotenv==1.2.*",
     "requests==2.34.*",
     "sentry-sdk==2.74.*",

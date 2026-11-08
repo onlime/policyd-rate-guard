@@ -21,7 +21,6 @@ def test_defaults() -> None:
     assert settings.listen == TcpAddress('127.0.0.1', 10033)
     assert settings.db.user == 'policyd-rate-guard'
     assert settings.db.unix_socket is None
-    assert settings.log_msg_prefix is False
     assert settings.webhook.enabled is False
     assert settings.message_retention == 0
 
@@ -42,7 +41,6 @@ def test_values_and_backward_compatible_names() -> None:
         'SOCKET': '[::1],10034',
         'LOG_LEVEL': 'debug',
         'LOG_FILE': '/var/log/x.log',
-        'LOG_MSG_PREFIX': 'True',
         'SYSLOG': 'yes',
         'MESSAGE_RETENTION': '365',
         'SENTRY_DSN': 'https://key@example.invalid/1',
@@ -55,7 +53,6 @@ def test_values_and_backward_compatible_names() -> None:
     assert settings.listen == TcpAddress('::1', 10034)
     assert settings.log_level == 'DEBUG'
     assert settings.log_file == Path('/var/log/x.log')
-    assert settings.log_msg_prefix is True
     assert settings.syslog is True
     assert settings.message_retention == 365
     assert settings.secrets() == ['pw', 'https://key@example.invalid/1']
@@ -118,9 +115,12 @@ def test_all_errors_are_reported_at_once() -> None:
         ({'WEBHOOK_URL': 'http://example.com/', 'WEBHOOK_SECRET': SECRET}, 'must start with https://'),
         ({'WEBHOOK_URL': 'https://example.com/{nope}', 'WEBHOOK_SECRET': SECRET}, "unknown placeholder(s) ['nope']"),
         ({'WEBHOOK_URL': 'https://example.com/{sender', 'WEBHOOK_SECRET': SECRET}, 'invalid placeholder syntax'),
+        ({'WEBHOOK_URL': 'https://example.com/', 'WEBHOOK_SECRET': 'not base64!'}, 'must be base64 encoded'),
+        # the simple token of 0.x is gone: no {token} placeholder, WEBHOOK_USE_JWT=False is rejected
+        ({'WEBHOOK_URL': 'https://example.com/?token={token}', 'WEBHOOK_SECRET': SECRET}, "['token']"),
         (
-            {'WEBHOOK_URL': 'https://example.com/', 'WEBHOOK_SECRET': 'not base64!', 'WEBHOOK_USE_JWT': 'True'},
-            'must be base64 encoded',
+            {'WEBHOOK_URL': 'https://example.com/', 'WEBHOOK_SECRET': SECRET, 'WEBHOOK_USE_JWT': 'False'},
+            'the simple token was removed',
         ),
     ],
 )
@@ -133,7 +133,8 @@ def test_webhook_validation(values: dict[str, str], error: str) -> None:
 def test_webhook_valid_and_http_for_development() -> None:
     settings = settings_from_mapping({
         'WEBHOOK_ENABLED': 'True',
-        'WEBHOOK_URL': 'http://host.docker.internal:8080/api/policyd/{sender}?token={token}',
+        'WEBHOOK_URL': 'http://host.docker.internal:8080/api/policyd/{sender}',
+        'WEBHOOK_USE_JWT': 'True',  # still accepted (JWT is the only variant now)
         'WEBHOOK_SECRET': SECRET,
         'WEBHOOK_ALLOW_HTTP': 'True',
     })  # fmt: skip
@@ -143,13 +144,11 @@ def test_webhook_valid_and_http_for_development() -> None:
 
 def test_load_settings_env_file_and_environment_override(tmp_path: Path) -> None:
     env_file = tmp_path / 'test.env'
-    env_file.write_text(
-        '# comment\nQUOTA=42 # inline comment\nDB_PASSWORD="quoted # not a comment"\nLOG_MSG_PREFIX=True\n'
-    )
-    settings = load_settings(env_file, environ={'LOG_MSG_PREFIX': 'False'})
+    env_file.write_text('# comment\nQUOTA=42 # inline comment\nDB_PASSWORD="quoted # not a comment"\nLOG_LEVEL=DEBUG\n')
+    settings = load_settings(env_file, environ={'LOG_LEVEL': 'WARNING'})
     assert settings.quota == 42
     assert settings.db.password == 'quoted # not a comment'
-    assert settings.log_msg_prefix is False  # the environment wins
+    assert settings.log_level == 'WARNING'  # the environment wins
 
 
 def test_load_settings_from_policyd_env_file_variable(tmp_path: Path) -> None:

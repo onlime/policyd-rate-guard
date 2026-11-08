@@ -18,8 +18,8 @@ from contextlib import contextmanager
 from .config import Settings
 
 LOGGER_NAME = 'policyd-rate-guard'
-LOG_FORMAT = '%(asctime)s %(levelname)s %(caller_prefix)s%(queue_id_prefix)s%(message)s'
-SYSLOG_FORMAT = '%(name)s[%(process)d]: %(levelname)s %(caller_prefix)s%(queue_id_prefix)s%(message)s'
+LOG_FORMAT = '%(asctime)s %(levelname)s %(queue_id_prefix)s%(message)s'
+SYSLOG_FORMAT = '%(name)s[%(process)d]: %(levelname)s %(queue_id_prefix)s%(message)s'
 
 queue_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar('queue_id', default=None)
 
@@ -36,16 +36,11 @@ def queue_id_context(queue_id: str | None) -> Iterator[None]:
 
 
 class ContextFilter(logging.Filter):
-    """Add ``queue_id_prefix`` and ``caller_prefix`` to every record (never drops a record)."""
-
-    def __init__(self, caller_prefix: bool) -> None:
-        super().__init__()
-        self.caller_prefix = caller_prefix
+    """Add ``queue_id_prefix`` to every record (never drops a record)."""
 
     def filter(self, record: logging.LogRecord) -> bool:
         queue_id = queue_id_var.get()
         record.queue_id_prefix = f'{queue_id}: ' if queue_id else ''
-        record.caller_prefix = f'{record.filename} {record.funcName}() - ' if self.caller_prefix else ''
         return True
 
 
@@ -70,7 +65,7 @@ def configure_logging(settings: Settings) -> logging.Logger:
         # Under systemd, stderr goes to the journal
         handlers.append(logging.StreamHandler(sys.stderr))
 
-    context_filter = ContextFilter(settings.log_msg_prefix)
+    context_filter = ContextFilter()
     for handler in handlers:
         if handler.formatter is None:
             handler.setFormatter(logging.Formatter(LOG_FORMAT))
