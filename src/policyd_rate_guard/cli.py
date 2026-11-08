@@ -16,7 +16,7 @@ from . import __version__
 from .config import ConfigError, Settings, load_settings
 from .db import Database
 from .log import configure_logging
-from .ratelimit import purge_messages, reset_counters
+from .ratelimit import check_writes, purge_messages, reset_counters
 from .sentry import init_sentry
 from .server import PolicyServer, bind_listen_socket
 from .service import PolicyService
@@ -72,14 +72,21 @@ def serve(settings: Settings, logger: logging.Logger, require_socket_activation:
 def cleanup(settings: Settings, logger: logging.Logger) -> int:
     db = Database(settings.db)
     try:
-        changed = reset_counters(db)
+        try:
+            changed = reset_counters(db)
+        except Exception:
+            # The unit is retried (Restart=on-failure): otherwise senders keep yesterday's counters for a day
+            logger.exception('Resetting the counters failed')
+            return EXIT_FAILURE
         logger.info('Reset counters of %d senders', changed)
         if settings.message_retention > 0:
-            deleted = purge_messages(db, settings.message_retention)
-            logger.info('Deleted %d old messages (retention: %d days)', deleted, settings.message_retention)
-    except Exception:
-        logger.exception('Cleanup failed')
-        return EXIT_FAILURE
+            try:
+                deleted = purge_messages(db, settings.message_retention)
+            except Exception:
+                # Not a failure of the unit: a retry would reset the counters again; the next night purges the rest
+                logger.exception('Purging old messages failed')
+            else:
+                logger.info('Deleted %d old messages (retention: %d days)', deleted, settings.message_retention)
     finally:
         db.close()
     return EXIT_OK
@@ -88,12 +95,7 @@ def cleanup(settings: Settings, logger: logging.Logger) -> int:
 def check(settings: Settings, logger: logging.Logger) -> int:
     db = Database(settings.db)
     try:
-        with db.connection() as conn:
-            cursor = conn.cursor()
-            for table in ('ratelimits', 'messages'):
-                cursor.execute(f'SELECT 1 FROM `{table}` LIMIT 1')
-                cursor.fetchone()
-            cursor.close()
+        check_writes(db, settings.quota)
     except Exception as e:  # report any failure as a failed check
         logger.error('Database check failed: %s', e)
         return EXIT_FAILURE
@@ -114,7 +116,10 @@ def main(argv: list[str] | None = None) -> int:
         # Typically run as root (e.g. by Ansible before a restart): never create or touch the service's log file
         return check(settings, configure_logging(replace(settings, log_file=None, syslog=False, log_console=True)))
     logger = configure_logging(settings)
-    init_sentry(settings)
+    try:
+        init_sentry(settings)
+    except Exception:  # error reporting must never keep the daemon from serving
+        logger.exception('Sentry could not be initialized, continuing without it')
     match args.command:
         case 'cleanup':
             return cleanup(settings, logger)

@@ -9,9 +9,10 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - **Rate limit bypass by padding:** 0.x read only the first 2048 bytes of a policy request. Postfix sends `helo_name`, `sender`, `client_name` and `reverse_client_name` before `sasl_username`, so an authenticated sender could push `sasl_username` out of the request (e.g. with a 1900-character MAIL FROM local part, which Postfix accepts) and was answered with `DUNNO` without being counted. Requests are now read completely (up to 64 KiB, beyond that `DEFER_IF_PERMIT`), invalid UTF-8 no longer raises.
 - **Rate limit bypass by concurrency:** counters were read, incremented in Python and written back as absolute values. Parallel mails of one sender lost updates (30 parallel first mails were counted as 4) and the first mails of a new sender ran into a duplicate key error, answered with `DUNNO`. Counting is now a single atomic upsert; the daemon never writes `quota`, so quota changes made meanwhile (e.g. by an admin tool) are kept.
 - A blocked sender's mail was accepted (`DUNNO`) whenever anything failed after the decision, e.g. storing a `From` address longer than 255 characters under strict SQL mode. Values are clamped to the column sizes and the decision is always sent.
+- **Counter overflow:** `msg_counter`, `rcpt_counter`, `msg_total` and `rcpt_total` stop at 4294967295, the maximum of their `int unsigned` columns (`LEAST(… + n, 4294967295)` in the upsert). The totals are never reset, and blocked retries keep adding up to 1000 recipients each: once a total overflowed, every request of that sender failed under strict SQL mode (the MySQL default) and was answered with `FAIL_ACTION` (`DUNNO`), so its mail passed uncounted for good; under non-strict SQL mode the value was silently capped. A sender at the cap stays blocked.
 - `recipient_count` is validated: a negative value (anyone who can connect to the policy port can send one) reset a sender's counter under non-strict SQL mode.
 - Sentry no longer receives local variables of stack frames, which included the webhook secret and the database password; events are scrubbed of email addresses, secrets and tokens.
-- Database connect, read, write and lock wait timeouts: a slow or locked database can no longer make requests pile up until the server's connections run out.
+- Database connect, read, write and lock wait timeouts, and a decision within 8 s: a request that can't be decided in time gets `FAIL_ACTION` before Postfix's timeout, and one still waiting for a worker is dropped. A slow or locked database can no longer make requests pile up, or get a message counted twice when Postfix retries.
 - The configuration is read from an explicit file only (`load_dotenv()` searched parent directories) and lives in `/etc/policyd-rate-guard/` instead of the code directory.
 - The systemd units run as a dedicated user `policyd-rate-guard` (instead of `postfix`, the mail owner) with full sandboxing (`systemd-analyze security`: 1.1 instead of 9.0).
 - Dependencies are installed as binary wheels only, so no third-party code runs at install time.
@@ -23,10 +24,12 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify`.
 - `SOCKET` only takes `host,port` (used without socket activation). A unix socket is set up in the socket unit (`ListenStream=/path`), see the README.
 - Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.
-- `LOG_MSG_PREFIX` is removed. The log line format is unchanged; the queue ID prefix stays.
+- `LOG_MSG_PREFIX` is removed. The log line format is unchanged (as with `LOG_MSG_PREFIX=False`, which the Ansible role sets since 0.5.1); the queue ID prefix stays.
 - Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer.
 - Webhook: the simple token (`sha256(secret + sender)` in the `{token}` placeholder, static and replayable) is removed. The webhook always sends a JWT in the `Authorization: Bearer` header, with the same claims as before; `WEBHOOK_USE_JWT=False` and `{token}` are rejected at startup. `WEBHOOK_SECRET` must be base64 encoded.
-- `DB_POOL_MAXSHARED` is ignored (PyMySQL connections can't be shared).
+- `DB_POOL_MAXSHARED` and `DB_POOL_MAXUSAGE` are ignored (PyMySQL connections can't be shared, and DBUtils doesn't recycle connections inside transactions).
+- `DB_LOCK_WAIT_TIMEOUT` is limited to 1–8 s, below Postfix's `timeout=10s`.
+- An invalid `SENTRY_DSN` is a configuration error.
 
 **Improved:**
 
@@ -37,7 +40,12 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - The log file is reopened after rotation, logrotate no longer restarts the daemon.
 - The webhook payload's `timestamp` is the time of the message (0.x always sent the daemon's start time).
 - Daily cleanup resets counters in one statement and purges old messages in batches.
-- A warning if the daemon is not used in the DATA or END-OF-MESSAGE stage, where the recipient count is final.
+- An ERROR (once per stage) if the daemon is used outside the DATA, BDAT or END-OF-MESSAGE stage, where the recipient count is final; a request with a protocol state that Postfix never sends is answered as invalid.
+- The nightly cleanup is retried by systemd if resetting the counters fails (e.g. a row locked at midnight); a failed purge is logged and continued the next night.
+- `check` runs the statements of a policy request and the cleanup in a transaction that is rolled back, so a missing privilege or an unsuitable binlog format fails the check (and the Ansible deployment) instead of every request.
+- Webhook failures are logged at ERROR, with the queue ID of the message.
+- A failing Sentry initialization no longer stops the daemon.
+- Logs of libraries (urllib3, Sentry, yoyo) no longer end up in the policy log.
 
 **Added:**
 

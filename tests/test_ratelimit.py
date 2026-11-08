@@ -249,3 +249,20 @@ async def test_server_with_real_database(
     assert len(results) == 60
     row = counters(raw_db, sender)
     assert (row['msg_counter'], row['rcpt_counter']) == (60, 60)
+
+
+@pytest.mark.db
+def test_counters_stop_at_the_column_maximum(
+    db: Database, raw_db: Any, sender: str, make_settings: Callable[..., Settings], logger: logging.Logger
+) -> None:
+    """The totals are never reset: under strict sql_mode an overflow failed every request of that sender."""
+    with raw_db.cursor() as cursor:
+        cursor.execute(
+            'INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `msg_total`, `rcpt_total`) '
+            'VALUES (%s, 1000, 1000, 4294967295, 4294967290)',
+            (sender,),
+        )
+    svc = PolicyService(make_settings(), db, logger)
+    assert decide(svc, sender, rcpt=10).action == 'OK'
+    row = counters(raw_db, sender)
+    assert (row['msg_total'], row['rcpt_total']) == (4294967295, 4294967295)

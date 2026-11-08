@@ -74,7 +74,6 @@ class Database:
             maxcached=settings.pool_maxcached,
             maxconnections=settings.pool_maxconnections,
             blocking=True,  # wait for a free connection instead of failing (callers are bounded by the executor)
-            maxusage=settings.pool_maxusage,
             setsession=session_statements(settings),
             ping=1,  # check connections when taken from the pool (server-side wait_timeout)
             reset=True,  # roll back on return

@@ -109,7 +109,7 @@ The daemon gets its listening socket from systemd (`policyd-rate-guard.socket`, 
 
 ### Configure Postfix
 
-Integrate PolicydRateGuard with [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) in [`smtpd_data_restrictions`](https://www.postfix.org/postconf.5.html#smtpd_data_restrictions) (or `smtpd_end_of_data_restrictions`): only there the recipient count is final. In any other stage the daemon answers `DUNNO` and logs a warning.
+Integrate PolicydRateGuard with [`check_policy_service`](https://www.postfix.org/postconf.5.html#check_policy_service) in [`smtpd_data_restrictions`](https://www.postfix.org/postconf.5.html#smtpd_data_restrictions) (or `smtpd_end_of_data_restrictions`): only there the recipient count is final. In any other stage the daemon answers `DUNNO` and logs an ERROR, once per stage.
 
 `/etc/postfix/main.cf`:
 
@@ -140,7 +140,7 @@ Use role v1.0.0, which does all of this. Manually:
 
 1. Stop and disable the old service, which occupies port 10033: `systemctl disable --now policyd-rate-guard.service`.
 2. Don't reuse the old checkout: 0.x deployments made it owned by `postfix`, so it must be considered untrusted. Move it aside, clone the release fresh as root and create a new venv (steps 2–4 above).
-3. Move the configuration from `/opt/policyd-rate-guard/.env` to `/etc/policyd-rate-guard/policyd-rate-guard.env`, and `yoyo.ini` to `/etc/policyd-rate-guard/yoyo.ini` with an absolute `sources = /opt/policyd-rate-guard/database/migrations`. Delete the old files, they were world-readable: rotate the passwords and the webhook secret.
+3. Move the configuration from `/opt/policyd-rate-guard/.env` to `/etc/policyd-rate-guard/policyd-rate-guard.env`, and `yoyo.ini` to `/etc/policyd-rate-guard/yoyo.ini` with an absolute `sources = /opt/policyd-rate-guard/database/migrations`. Delete the old files, they were world-readable: rotate the passwords, and the webhook secret on both sides at the same time (a mismatch makes every webhook call fail).
 4. Replace `run.py`/`cleanup.py` in custom units or scripts with `venv/bin/policyd-rate-guard serve` / `cleanup`.
 5. Set `MESSAGE_RETENTION` if you haven't: 0.x kept all messages forever by default. The first cleanup purges the backlog in batches.
 6. A unix socket is no longer bound by the daemon (`SOCKET=/path`): set it up in the socket unit instead (`ListenStream=`, see above).
@@ -158,8 +158,8 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `DB_UNIX_SOCKET` | | Database unix socket, e.g. `/run/mysqld/mysqld.sock`; overrides host and port |
 | `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` | `policyd-rate-guard`, empty, `policyd-rate-guard` | Credentials and database name |
 | `DB_POOL_MAXCONNECTIONS` | `10` | Database connections, also the number of requests processed in parallel |
-| `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED`, `DB_POOL_MAXUSAGE` | `0`, `10`, `10000` | [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) tuning |
-| `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds to wait for a locked row or table before answering `FAIL_ACTION` |
+| `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED` | `0`, `10` | [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) tuning |
+| `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds (1–8) to wait for a locked row or table before answering `FAIL_ACTION`. A request not decided within 8 s gets `FAIL_ACTION` too, before Postfix's `timeout=10s`. |
 | `QUOTA` | `1000` | Default quota (recipients and messages per period) of new senders |
 | `ACTION_TEXT_BLOCKED` | `Rate limit reached, retry later` | Text of the `DEFER_IF_PERMIT` answer for senders over quota |
 | `FAIL_ACTION` | `DUNNO` | Answer on internal errors (e.g. database down): `DUNNO` (accept) or `DEFER_IF_PERMIT` |

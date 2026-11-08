@@ -30,6 +30,12 @@ def service(settings: Settings, db: Any = None) -> PolicyService:
         (postfix_request('x' * 256 + '@example.com'), Outcome(INVALID_ACTION)),
         (postfix_request('u@example.com'), None),  # needs the DB
         (postfix_request('u@example.com', protocol_state='END-OF-MESSAGE'), None),
+        (postfix_request('u@example.com', protocol_state='BDAT'), None),
+        # not a state Postfix sends: never DUNNO
+        (postfix_request('u@example.com', protocol_state='nonsense'), Outcome(INVALID_ACTION)),
+        (postfix_request('u@example.com', protocol_state=''), Outcome(INVALID_ACTION)),
+        # more digits than int() accepts: invalid, not an internal error
+        (postfix_request('u@example.com', recipient_count='9' * 5000), Outcome(INVALID_ACTION)),
     ],
 )
 def test_precheck(data: bytes, expected: Outcome | None, make_settings: Callable[..., Settings]) -> None:
@@ -95,3 +101,16 @@ def test_store_failure_keeps_the_decision(
     assert outcome.notify.sender == 'u@example.com'
     assert outcome.notify.used == 6
     assert 'Failed to store message' in caplog.text
+
+
+def test_unknown_protocol_states_are_neither_remembered_nor_errors(
+    make_settings: Callable[..., Settings], logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Any local client could send unique states: no memory growth, no ERROR (a Zabbix alarm) per request."""
+    svc = PolicyService(make_settings(), None, logger)  # type: ignore[arg-type]
+    for i in range(100):
+        assert svc.precheck(parse_request(postfix_request('u@example.com', protocol_state=f'X{i}'))) == Outcome(
+            INVALID_ACTION
+        )
+    assert not svc._warned_states
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]

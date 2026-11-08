@@ -7,7 +7,7 @@ from datetime import datetime
 from .config import Settings
 from .db import Database
 from .log import queue_id_context
-from .protocol import COUNTING_STATES, PolicyRequest, sanitize
+from .protocol import COUNTING_STATES, POSTFIX_STATES, PolicyRequest, sanitize
 from .ratelimit import SENDER_MAX, Decision, MessageRecord, count_message, store_message
 from .webhook import WebhookPayload
 
@@ -68,13 +68,17 @@ class PolicyService:
 
         state = request.protocol_state or ''
         if state not in COUNTING_STATES:
+            if state not in POSTFIX_STATES:
+                # not from Postfix: never let it pass as DUNNO (and don't remember arbitrary values)
+                self.logger.warning('Invalid request: protocol_state=%s', sanitize(state, 32))
+                return Outcome(INVALID_ACTION)
             if state not in self._warned_states:
                 self._warned_states.add(state)
                 # every authenticated mail passes uncounted: an ERROR, which Zabbix alerts on
                 self.logger.error(
                     'Not counting in protocol state %s: use check_policy_service in smtpd_data_restrictions '
                     '(or smtpd_end_of_data_restrictions)',
-                    sanitize(state, 32),
+                    state,
                 )
             return Outcome(DUNNO)
 

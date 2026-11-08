@@ -92,6 +92,7 @@ def test_failed_call_logs_only_the_url_template(logger: logging.Logger, caplog: 
     assert not hook.call(payload())
     assert 'Webhook call failed: POST https://example.com/api/policyd/{sender} (ConnectionError)' in caplog.text
     assert 'test@example.com' not in caplog.text
+    assert caplog.records[-1].levelname == 'ERROR'  # no notification: Zabbix alerts on ERROR lines
 
 
 def test_non_2xx_is_logged_truncated(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:

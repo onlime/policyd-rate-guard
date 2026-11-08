@@ -7,15 +7,18 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
+import requests
 
 from policyd_rate_guard import server as server_module
-from policyd_rate_guard.config import Settings, TcpAddress
+from policyd_rate_guard.config import DbSettings, Settings, TcpAddress, WebhookSettings
+from policyd_rate_guard.log import ContextFilter
 from policyd_rate_guard.protocol import PolicyRequest
 from policyd_rate_guard.server import PolicyServer, bind_listen_socket
 from policyd_rate_guard.service import INVALID_ACTION, Outcome
-from policyd_rate_guard.webhook import WebhookPayload
+from policyd_rate_guard.webhook import Webhook, WebhookPayload
 
 from .helpers import postfix_request
 
@@ -269,3 +272,44 @@ def test_bind_ipv6(make_settings: Callable[..., Settings]) -> None:
     sock = bind_listen_socket(make_settings(listen=TcpAddress('::1', 0)))
     assert sock.family == socket.AF_INET6
     sock.close()
+
+
+async def test_undecided_requests_get_fail_action_before_postfix_gives_up(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A slow database: FAIL_ACTION before Postfix's timeout (no retry, so no double count), and a request still
+    waiting for a worker is dropped instead of being counted later."""
+    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.2)
+    run = await server_factory(FakeService(delay=0.6), db=DbSettings(pool_maxconnections=1))
+    first, second = await run.connect(), await run.connect()
+    first[1].write(postfix_request('u@example.com', queue_id='SLOW1'))
+    second[1].write(postfix_request('u@example.com', queue_id='SLOW2'))
+    assert await asyncio.wait_for(first[0].readuntil(b'\n\n'), 5) == b'action=DUNNO\n\n'
+    assert await asyncio.wait_for(second[0].readuntil(b'\n\n'), 5) == b'action=DUNNO\n\n'
+    await asyncio.sleep(0.8)  # the first one finishes in its worker, the second never starts
+    assert [r.queue_id for r in run.service.decided] == ['SLOW1']
+    assert 'No decision within 0 s (database slow or workers busy), answering DUNNO' in caplog.text
+    for _, writer in (first, second):
+        writer.close()
+    await run.server.shutdown()
+
+
+async def test_webhook_failure_is_logged_with_the_queue_id(
+    server_factory: Callable[..., Any], logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.handler.addFilter(ContextFilter())
+    secret = 'Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20='  # 32 bytes
+    webhook = Webhook(WebhookSettings(enabled=True, url='https://x.invalid/{sender}', secret=secret), logger)
+    webhook.session.post = MagicMock(side_effect=requests.ConnectionError('down'))  # type: ignore[method-assign]
+    run = await server_factory(FakeService(Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD)), webhook)
+    reader, writer = await run.connect()
+    await ask(reader, writer, postfix_request('u@example.com'))
+    for _ in range(100):
+        records = [r for r in caplog.records if r.getMessage().startswith('Webhook call failed')]
+        if records:
+            break
+        await asyncio.sleep(0.01)
+    assert records[0].levelname == 'ERROR'
+    assert records[0].queue_id_prefix == 'Q: '
+    writer.close()
+    await run.server.shutdown()

@@ -188,3 +188,11 @@ def test_env_file_values_are_literal(tmp_path: Path) -> None:
 def test_quota_must_fit_the_column() -> None:
     with pytest.raises(ConfigError, match='QUOTA'):
         settings_from_mapping({'QUOTA': '4294967296'})
+
+
+def test_sentry_dsn_and_lock_wait_are_validated() -> None:
+    with pytest.raises(ConfigError, match='SENTRY_DSN: not a valid Sentry DSN') as info:
+        settings_from_mapping({'SENTRY_DSN': 'https://abc@o1.ingest.sentry.io'})  # no project ID
+    assert 'abc@' not in str(info.value)  # the DSN is a secret
+    with pytest.raises(ConfigError, match='DB_LOCK_WAIT_TIMEOUT'):
+        settings_from_mapping({'DB_LOCK_WAIT_TIMEOUT': '9'})  # longer than Postfix waits

@@ -69,3 +69,9 @@ def test_response_is_always_one_line(action: str) -> None:
     assert response.startswith(b'action=')
     assert response.endswith(b'\n\n')
     assert response.count(b'\n') == 2
+
+
+def test_recipient_count_with_too_many_digits() -> None:
+    """int() refuses more than 4300 digits: that must be an invalid value, not an exception."""
+    request = parse_request(postfix_request('u@example.com', recipient_count='9' * 5000))
+    assert request.recipient_count(1_000_000) is None

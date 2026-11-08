@@ -78,12 +78,12 @@ class Webhook:
             )
         except Exception as e:  # a webhook failure must never affect mail flow
             # Only the exception type and the URL template: the message may contain the token
-            self.logger.warning('Webhook call failed: POST %s (%s)', self.settings.url, type(e).__name__)
+            self.logger.error('Webhook call failed: POST %s (%s)', self.settings.url, type(e).__name__)
             return False
         if 200 <= response.status_code < 300:  # redirects aren't followed, so a 3xx is a failure too
             self.logger.info('Webhook call successful: POST %s (User-Agent: %s)', self.settings.url, self.user_agent)
             return True
-        self.logger.warning(
+        self.logger.error(
             'Webhook call failed with status code: %s %s',
             response.status_code,
             sanitize(response.text, MAX_LOGGED_BODY),

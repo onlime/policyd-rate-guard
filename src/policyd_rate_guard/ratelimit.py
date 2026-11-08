@@ -21,10 +21,10 @@ COUNT_SQL = """
 INSERT INTO `ratelimits` (`sender`, `quota`, `quota_reset`, `msg_counter`, `rcpt_counter`, `msg_total`, `rcpt_total`)
 VALUES (%(sender)s, %(quota)s, %(quota)s, 1, %(rcpt)s, 1, %(rcpt)s)
 ON DUPLICATE KEY UPDATE
-    `msg_counter` = `msg_counter` + 1,
-    `rcpt_counter` = `rcpt_counter` + %(rcpt)s,
-    `msg_total` = `msg_total` + 1,
-    `rcpt_total` = `rcpt_total` + %(rcpt)s
+    `msg_counter` = LEAST(`msg_counter` + 1, 4294967295),
+    `rcpt_counter` = LEAST(`rcpt_counter` + %(rcpt)s, 4294967295),
+    `msg_total` = LEAST(`msg_total` + 1, 4294967295),
+    `rcpt_total` = LEAST(`rcpt_total` + %(rcpt)s, 4294967295)
 """
 
 SELECT_SQL = """
@@ -48,6 +48,10 @@ UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0,
 PURGE_SQL = """
 DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %(days)s DAY) ORDER BY `id` LIMIT %(batch)s
 """
+
+# Touches no row: only checks the DELETE privilege for `check`
+CHECK_DELETE_SQL = 'DELETE FROM `messages` WHERE `id` = 0'
+CHECK_SENDER = 'policyd-rate-guard-check@invalid'
 
 MAX_DEADLOCK_RETRIES = 3
 
@@ -187,3 +191,27 @@ def purge_messages(db: Database, days: int, batch_size: int = 10000) -> int:
             deleted += count
             if count < batch_size:
                 return deleted
+
+
+def check_writes(db: Database, default_quota: int) -> None:
+    """Run the statements of a policy request and of the cleanup in a transaction that is rolled back.
+
+    Raises if the database user lacks a privilege or the server can't run them (e.g. READ COMMITTED with
+    statement-based binary logging), which a SELECT alone wouldn't show.
+    """
+    params = {'sender': CHECK_SENDER, 'rcpt': 1, 'quota': default_quota}
+    with db.connection() as conn:
+        conn.begin()
+        cursor = conn.cursor()
+        try:
+            cursor.execute(COUNT_SQL, params)
+            cursor.execute(SELECT_SQL, params)
+            row = cursor.fetchone()
+            cursor.execute(INSERT_MESSAGE_SQL, {
+                'ratelimit_id': row['id'] if row else 0, 'msgid': None, 'sender': CHECK_SENDER, 'rcpt_count': 1,
+                'blocked': False, 'from_addr': None, 'to_addr': None, 'client_address': None, 'client_name': None,
+            })  # fmt: skip
+            cursor.execute(CHECK_DELETE_SQL)
+        finally:
+            conn.rollback()
+            cursor.close()

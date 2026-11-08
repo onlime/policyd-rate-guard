@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import dotenv_values
+from sentry_sdk.utils import BadDsn, Dsn
 
 from .webhook import WebhookPayload
 
@@ -49,7 +50,6 @@ class DbSettings:
     pool_mincached: int = 0
     pool_maxcached: int = 10
     pool_maxconnections: int = 10
-    pool_maxusage: int = 10000
     lock_wait_timeout: int = 5
 
 
@@ -191,8 +191,7 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         pool_mincached=r.integer('DB_POOL_MINCACHED', 0),
         pool_maxcached=r.integer('DB_POOL_MAXCACHED', 10),
         pool_maxconnections=r.integer('DB_POOL_MAXCONNECTIONS', 10, 1, 1000),
-        pool_maxusage=r.integer('DB_POOL_MAXUSAGE', 10000),
-        lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 300),
+        lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 8),  # below Postfix's timeout=10s
     )
     webhook = WebhookSettings(
         enabled=r.flag('WEBHOOK_ENABLED', False),
@@ -225,6 +224,13 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         except ConfigError as e:
             errors.append(str(e))
 
+    sentry_dsn = r.raw('SENTRY_DSN')
+    if sentry_dsn:
+        try:
+            Dsn(sentry_dsn)
+        except BadDsn:
+            errors.append('SENTRY_DSN: not a valid Sentry DSN')  # without the value, it's a secret
+
     log_file = r.raw('LOG_FILE')
     settings = Settings(
         db=db,
@@ -238,7 +244,7 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         log_console=r.flag('LOG_CONSOLE', False),
         syslog=r.flag('SYSLOG', False),
         message_retention=r.integer('MESSAGE_RETENTION', 0),
-        sentry_dsn=r.raw('SENTRY_DSN'),
+        sentry_dsn=sentry_dsn,
         sentry_environment=r.text('SENTRY_ENVIRONMENT', 'dev'),
     )
     if errors:

@@ -10,7 +10,9 @@ from types import MappingProxyType
 
 # Protocol states in which the recipient count is final (smtpd_data_restrictions, smtpd_end_of_data_restrictions).
 # BDAT (CHUNKING) is reported as DATA, see https://www.postfix.org/BDAT_README.html
-COUNTING_STATES = frozenset({'DATA', 'END-OF-MESSAGE'})
+COUNTING_STATES = frozenset({'DATA', 'BDAT', 'END-OF-MESSAGE'})
+# The other states in which Postfix may call a policy service, where the recipient count isn't final
+POSTFIX_STATES = frozenset({'CONNECT', 'EHLO', 'HELO', 'MAIL', 'RCPT', 'VRFY', 'ETRN'})
 
 _CONTROL_CHARS = {i: f'\\x{i:02x}' for i in (*range(0x20), 0x7F)}
 
@@ -55,7 +57,7 @@ class PolicyRequest:
     def recipient_count(self, maximum: int) -> int | None:
         """The recipient count, or None if missing or not a plausible value."""
         raw = self.get('recipient_count')
-        if raw is None or not raw.isascii() or not raw.isdigit():
+        if raw is None or not raw.isascii() or not raw.isdigit() or len(raw) > len(str(maximum)):
             return None
         count = int(raw)
         return count if count <= maximum else None

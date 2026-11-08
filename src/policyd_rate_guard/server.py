@@ -25,6 +25,9 @@ BACKLOG = 256
 IDLE_TIMEOUT = 330.0  # seconds, longer than Postfix's smtpd_policy_service_max_idle (300s)
 MAX_REQUEST_SIZE = 65536  # bytes, far more than Postfix ever sends
 SHUTDOWN_GRACE = 10.0
+# Seconds, below Postfix's policy timeout (timeout=10s): an undecided request gets FAIL_ACTION before Postfix gives
+# up and retries, and one still waiting for a worker is dropped, so a message is never counted twice
+DECIDE_TIMEOUT = 8.0
 
 
 def bind_listen_socket(settings: Settings) -> socket.socket:
@@ -154,13 +157,28 @@ class PolicyServer:
         outcome = self.service.precheck(request)
         if outcome is None:
             loop = asyncio.get_running_loop()
-            outcome = await loop.run_in_executor(self.db_executor, self.service.decide, request)
+            try:
+                async with asyncio.timeout(DECIDE_TIMEOUT):
+                    outcome = await loop.run_in_executor(self.db_executor, self.service.decide, request)
+            except TimeoutError:
+                with queue_id_context(request.queue_id):
+                    self.logger.error(
+                        'No decision within %.0f s (database slow or workers busy), answering %s',
+                        DECIDE_TIMEOUT,
+                        self.settings.fail_action,
+                    )
+                outcome = Outcome(self.settings.fail_action)
         return outcome
 
     def _notify(self, payload: WebhookPayload) -> None:
         # At most once per sender and period; a non-daemon thread, so a shutdown waits for it (timeouts apply)
         if self.webhook is not None:
-            threading.Thread(target=self.webhook.call, args=(payload,), name='policy-webhook').start()
+            threading.Thread(target=self._call_webhook, args=(payload,), name='policy-webhook').start()
+
+    def _call_webhook(self, payload: WebhookPayload) -> None:
+        if self.webhook is not None:
+            with queue_id_context(payload.msgid):
+                self.webhook.call(payload)
 
 
 async def _close(writer: asyncio.StreamWriter) -> None:
