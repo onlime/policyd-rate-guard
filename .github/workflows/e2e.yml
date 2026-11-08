@@ -1,11 +1,18 @@
-# End-to-end tests through a real Postfix (Debian 13) with SASL, see docker-compose.yml. Run manually.
+# End-to-end tests: real mails through Postfix (Debian 13) with SASL, see docker-compose.yml and tests/e2e
 name: E2E
 
 on:
+  push:
+    branches: [main, develop]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   e2e:

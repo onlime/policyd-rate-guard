@@ -332,7 +332,7 @@ $ E2E_SMTP_PORT=1587 E2E_DATABASE_URL=mysql://root:test@127.0.0.1:13312/policyd-
 $ docker compose down
 ```
 
-On GitHub, the end-to-end tests are a separate workflow, started by hand (Actions → E2E → Run workflow).
+On GitHub, the end-to-end tests run as their own workflow (E2E) on every push and pull request, next to CI.
 
 The compose stack is also handy to try things by hand: submission on `localhost:1587` (e.g. `swaks --server localhost:1587 --auth PLAIN --auth-user test01@example.com --auth-password Example1234 --to rcpt@example.org`), the daemon's log with `docker compose logs -f policyd`, recorded webhook calls on `http://localhost:18080/calls`.
 

@@ -55,7 +55,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 
 **Development:**
 
-- pyproject.toml with the dependencies pinned to minor versions, installed with plain pip (also in production, `pip install .`). ruff (also as pre-commit hook) and mypy, pytest (unit, concurrency, database and end-to-end tests through a real Postfix), GitHub Actions for MySQL 8.4, MySQL 9.7 and MariaDB 12.3 on Python 3.13 (and 3.14), pip-audit and Dependabot.
+- pyproject.toml with the dependencies pinned to minor versions, installed with plain pip (also in production, `pip install .`). ruff (also as pre-commit hook) and mypy, pytest (unit, concurrency, database and end-to-end tests through a real Postfix), GitHub Actions for MySQL 8.4, MySQL 9.7 and MariaDB 12.3 on Python 3.13 (and 3.14) and for the end-to-end tests, pip-audit and Dependabot.
 
 ## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (2026-02-24)
 
