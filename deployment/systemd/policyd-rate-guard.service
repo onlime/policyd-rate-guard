@@ -22,7 +22,6 @@ UMask=0027
 
 # Hardening, see `systemd-analyze security policyd-rate-guard.service`
 CapabilityBoundingSet=
-AmbientCapabilities=
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
@@ -44,8 +43,6 @@ RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
 RemoveIPC=yes
-KeyringMode=private
-DevicePolicy=closed
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources
