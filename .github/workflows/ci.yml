@@ -1,54 +1,67 @@
-# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python
-
 name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [main, develop]
   pull_request:
-    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - run: uv sync --locked --python 3.13
+      - name: Lint
+        run: |
+          uv run --no-sync ruff format --check .
+          uv run --no-sync ruff check --output-format=github .
+      - name: Type check
+        run: uv run --no-sync mypy
 
-    runs-on: ubuntu-latest
+  test:
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
-
+        python: ['3.13', '3.14']
+        db: ['mysql:8.4', 'mysql:9.7', 'mariadb:12.3']
     services:
       db:
-        image: mysql:8.0
+        image: ${{ matrix.db }}
         env:
           MYSQL_ROOT_PASSWORD: test
-          MYSQL_DATABASE: test
+          MARIADB_ROOT_PASSWORD: test
         ports:
           - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
-
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest || mariadb-admin ping -h 127.0.0.1 -uroot -ptest"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      TEST_DATABASE_URL: mysql://root:test@127.0.0.1:3306
     steps:
-    - uses: actions/checkout@v3
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v3
-      with:
-        python-version: ${{ matrix.python-version }}
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        python -m pip install flake8
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Lint with flake8
-      run: |
-        # stop the build if there are Python syntax errors or undefined names
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-    - name: Run migrations
-      run: |
-        yoyo -c yoyo.ini.github apply
-    - name: Run tests
-      run: |
-        cp .env.github .env.test
-        python -m unittest tests/test_*.py
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - run: uv sync --locked --python ${{ matrix.python }}
+      - name: Tests with coverage
+        run: uv run --no-sync pytest --cov --cov-report=term
+      - name: Concurrency tests, repeated
+        run: |
+          for _ in $(seq 5); do
+            uv run --no-sync pytest -q tests/test_ratelimit.py -k "concurrent or real_database"
+          done

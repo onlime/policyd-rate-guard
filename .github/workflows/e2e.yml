@@ -1,0 +1,38 @@
+# End-to-end tests through a real Postfix (Debian 13) with SASL, see docker-compose.yml.
+name: E2E
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          enable-cache: false
+      - run: uv sync --locked --python 3.13
+      - name: Start the stack
+        run: docker compose up --detach --build --wait
+      - name: End-to-end tests
+        env:
+          E2E_SMTP_PORT: '1587'
+          E2E_DATABASE_URL: mysql://root:test@127.0.0.1:13312/policyd-rate-guard
+          E2E_WEBHOOK_URL: http://127.0.0.1:18080
+        run: uv run --no-sync pytest -p no:cacheprovider tests/e2e
+      - name: Logs
+        if: always()
+        run: docker compose logs --no-color policyd postfix
+      - name: Stop the stack
+        if: always()
+        run: docker compose down --volumes
