@@ -14,7 +14,7 @@ smtpd_sasl_type = cyrus
 smtpd_sasl_path = smtpd
 smtpd_tls_security_level = none
 smtpd_relay_restrictions = permit_sasl_authenticated, reject
-smtpd_recipient_restrictions = permit_sasl_authenticated, reject
+smtpd_recipient_restrictions = reject_non_fqdn_recipient, permit_sasl_authenticated, reject
 
 smtpd_restriction_classes = policyd_rate_guard
 policyd_rate_guard = check_policy_service { inet:policyd:10033, timeout=10s, default_action=DUNNO }
