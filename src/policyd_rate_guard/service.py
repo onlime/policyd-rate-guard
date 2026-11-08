@@ -1,7 +1,8 @@
 """Policy decision for one request. Runs in a worker thread (blocking DB access)."""
 
 import logging
-from dataclasses import dataclass
+import threading
+from dataclasses import dataclass, replace
 from datetime import datetime
 
 from .config import Settings
@@ -25,8 +26,31 @@ class Outcome:
     notify: WebhookPayload | None = None
 
 
-def _queue_id(request: PolicyRequest) -> str | None:
-    return sanitize(request.queue_id, 64) if request.queue_id else None
+class Handover:
+    """Hands the decision from the worker to the event loop, which answers FAIL_ACTION after DECIDE_TIMEOUT.
+
+    Once the event loop has given up, the worker must not count a message it hasn't counted yet, and must log, store
+    and notify what Postfix actually got for one it has.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.abandoned = False
+        self.outcome: Outcome | None = None
+
+    def give_up(self) -> Outcome | None:
+        """Event loop, on timeout: the decision if the message is counted already, else None (FAIL_ACTION)."""
+        with self._lock:
+            if self.outcome is None:
+                self.abandoned = True
+            return self.outcome
+
+    def hand_over(self, outcome: Outcome) -> bool:
+        """Worker, right after counting: False if the event loop has answered FAIL_ACTION already."""
+        with self._lock:
+            if not self.abandoned:
+                self.outcome = outcome
+            return not self.abandoned
 
 
 class PolicyService:
@@ -39,18 +63,21 @@ class PolicyService:
 
     def precheck(self, request: PolicyRequest) -> Outcome | None:
         """Decide without the DB where possible (cheap, runs in the event loop). None means: needs ``decide()``."""
-        with queue_id_context(_queue_id(request)):
+        with queue_id_context(request.queue_id):
             try:
                 return self._precheck(request)
             except Exception:
                 self.logger.exception('Unhandled exception, answering %s', self.settings.fail_action)
                 return Outcome(self.settings.fail_action)
 
-    def decide(self, request: PolicyRequest) -> Outcome:
+    def decide(self, request: PolicyRequest, handover: Handover | None = None) -> Outcome:
         """Count the message and decide (blocking DB access, runs in a worker thread)."""
-        with queue_id_context(_queue_id(request)):
+        with queue_id_context(request.queue_id):
+            if handover is not None and handover.abandoned:
+                self.logger.warning('Already answered %s, not counting', self.settings.fail_action)
+                return Outcome(self.settings.fail_action)
             try:
-                return self._decide(request)
+                return self._decide(request, handover)
             except Exception:
                 self.logger.exception('Unhandled exception, answering %s', self.settings.fail_action)
                 return Outcome(self.settings.fail_action)
@@ -92,7 +119,7 @@ class PolicyService:
             return Outcome(INVALID_ACTION)
         return None
 
-    def _decide(self, request: PolicyRequest) -> Outcome:
+    def _decide(self, request: PolicyRequest, handover: Handover | None) -> Outcome:
         sender = request.sasl_username
         rcpt_count = request.recipient_count(MAX_RECIPIENT_COUNT)
         if sender is None or rcpt_count is None:  # pragma: no cover (rejected by _precheck)
@@ -112,18 +139,25 @@ class PolicyService:
         with self.db.connection() as conn:
             decision = count_message(conn, sender, rcpt_count, self.settings.quota)
             # The decision stands, whatever happens from here on
+            if decision.blocked:
+                notify = self._payload(record, decision) if decision.crossed and self.settings.webhook.enabled else None
+                outcome = Outcome(self.blocked_action, notify)
+            else:
+                outcome = Outcome(OK)
+            answered = handover is None or handover.hand_over(outcome)
+            # Too late: Postfix got FAIL_ACTION (the server logged it). Record that answer; the webhook still fires.
+            given = decision if answered else replace(decision, blocked=self.settings.fail_action != DUNNO)
             try:
-                store_message(conn, decision, record)
+                store_message(conn, given, record)
             except Exception:
                 self.logger.exception('Failed to store message')
 
-        self._log_decision(request, record, decision)
-        if decision.blocked:
-            notify = self._payload(record, decision) if decision.crossed and self.settings.webhook.enabled else None
-            return Outcome(self.blocked_action, notify)
-        return Outcome(OK)
+        self._log_decision(request, record, given, None if answered else 'DECIDE_TIMEOUT')
+        return outcome
 
-    def _log_decision(self, request: PolicyRequest, record: MessageRecord, decision: Decision) -> None:
+    def _log_decision(
+        self, request: PolicyRequest, record: MessageRecord, decision: Decision, reason: str | None = None
+    ) -> None:
         # Detailed log line, format kept from 0.x (parsed by operations scripts):
         # client=unknown[8.8.8.8], helo=myCLIENTPC, sasl_method=PLAIN, sasl_username=test@example.com, from=…,
         # to=…, recipient_count=1, curr_count=2/1000, status=ACCEPTED
@@ -134,7 +168,7 @@ class PolicyService:
             f'to={sanitize(record.to_addr)}, recipient_count={record.rcpt_count}, '
             f'curr_count={decision.rcpt_counter}/{decision.quota}, '
             f'status={"BLOCKED" if decision.blocked else "ACCEPTED"}'
-            f'{" (QUOTA_LIMIT_REACHED)" if decision.crossed else ""}'
+            f'{f" ({reason})" if reason else " (QUOTA_LIMIT_REACHED)" if decision.crossed else ""}'
         )
         if decision.blocked:
             self.logger.warning(

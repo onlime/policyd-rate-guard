@@ -17,6 +17,7 @@ from policyd_rate_guard.config import DbSettings, Settings, TcpAddress, WebhookS
 from policyd_rate_guard.db import Database, mysql_errno
 from policyd_rate_guard.protocol import parse_request
 from policyd_rate_guard.ratelimit import (
+    PURGE_SELECT_SQL,
     Decision,
     count_message,
     is_over_quota,
@@ -221,6 +222,20 @@ def test_purge_in_batches(db: Database, raw_db: Any, sender: str) -> None:
     with raw_db.cursor() as cursor:
         cursor.execute('SELECT COUNT(*) AS n FROM `messages`')
         assert cursor.fetchone() == {'n': 5}
+
+
+@pytest.mark.db
+def test_purge_reads_old_messages_in_index_order(raw_db: Any) -> None:
+    """No sort of all old rows per batch, whatever the optimizer prefers (a first purge of years of messages)."""
+    with raw_db.cursor() as cursor:
+        cursor.execute('SELECT VERSION() AS version')
+        if 'mariadb' not in cursor.fetchone()['version'].lower():
+            cursor.execute("SET SESSION explain_format = 'TRADITIONAL'")  # MySQL 9.x defaults to TREE
+        cursor.execute('EXPLAIN ' + PURGE_SELECT_SQL, {'days': 365, 'batch': 10000})
+        plan = cursor.fetchall()
+    assert len(plan) == 1
+    assert plan[0]['key'] == 'messages_created_at_index'
+    assert 'filesort' not in (plan[0]['Extra'] or '')
 
 
 @pytest.mark.db

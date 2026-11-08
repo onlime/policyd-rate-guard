@@ -9,7 +9,7 @@ import pytest
 from policyd_rate_guard.config import Settings, WebhookSettings
 from policyd_rate_guard.log import ContextFilter
 from policyd_rate_guard.protocol import parse_request
-from policyd_rate_guard.service import INVALID_ACTION, Outcome, PolicyService
+from policyd_rate_guard.service import INVALID_ACTION, Handover, Outcome, PolicyService
 
 from .helpers import SECRET, postfix_request
 
@@ -114,3 +114,57 @@ def test_unknown_protocol_states_are_neither_remembered_nor_errors(
         )
     assert not svc._warned_states
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+
+
+def test_answered_before_a_worker_was_free_is_not_counted(
+    make_settings: Callable[..., Settings], logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    handover = Handover()
+    assert handover.give_up() is None
+    db = MagicMock()
+    outcome = service(make_settings(), db).decide(parse_request(postfix_request('u@example.com')), handover)
+    assert outcome == Outcome('DUNNO')
+    db.connection.assert_not_called()
+    assert 'Already answered DUNNO, not counting' in caplog.text
+
+
+@pytest.mark.parametrize(
+    ('fail_action', 'stored_blocked', 'status'), [('DUNNO', False, 'ACCEPTED'), ('DEFER_IF_PERMIT', True, 'BLOCKED')]
+)
+def test_counted_after_the_answer_records_what_postfix_got(
+    fail_action: str,
+    stored_blocked: bool,
+    status: str,
+    make_settings: Callable[..., Settings],
+    logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The event loop answered FAIL_ACTION while the worker was counting: the log line and the messages row show
+    that answer, and the webhook payload is still returned for the crossing request."""
+    from policyd_rate_guard import service as service_module
+    from policyd_rate_guard.ratelimit import Decision
+
+    @contextmanager
+    def connection() -> Any:
+        yield MagicMock()
+
+    db = MagicMock()
+    db.connection = connection
+    handover = Handover()
+
+    def count(*args: Any) -> Decision:
+        assert handover.give_up() is None  # DECIDE_TIMEOUT passes while counting
+        return Decision(1, 5, 5, 6, 6, blocked=True, was_blocked=False)
+
+    monkeypatch.setattr(service_module, 'count_message', count)
+    store = MagicMock()
+    monkeypatch.setattr(service_module, 'store_message', store)
+    settings = make_settings(
+        webhook=WebhookSettings(enabled=True, url='https://x/{sender}', secret=SECRET), fail_action=fail_action
+    )
+    outcome = service(settings, db).decide(parse_request(postfix_request('u@example.com', recipient_count=6)), handover)
+    assert outcome.notify is not None
+    assert handover.abandoned
+    assert store.call_args.args[1].blocked is stored_blocked
+    assert f'status={status} (DECIDE_TIMEOUT)' in caplog.text

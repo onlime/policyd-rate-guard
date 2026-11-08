@@ -95,3 +95,35 @@ def test_events_contain_no_secrets_locals_or_addresses(
         assert needle not in payload
     assert b'[email]' in payload
     assert b'policyd-rate-guard@' in payload  # release
+
+
+def test_no_trace_headers_on_outgoing_requests(
+    transport: CaptureTransport, make_settings: Callable[..., Settings]
+) -> None:
+    """sentry-sdk adds sentry-trace/baggage to requests' calls by default, with the DSN's public key: not to the
+    webhook."""
+    import http.server
+    import threading
+
+    import requests
+
+    headers: list[dict[str, str]] = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            headers.append(dict(self.headers))
+            self.send_response(204)
+            self.end_headers()
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    httpd = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=httpd.handle_request)
+    thread.start()
+    assert init_sentry(make_settings(sentry_dsn='https://public@example.invalid/1'))
+    requests.post(f'http://127.0.0.1:{httpd.server_port}/', timeout=5)
+    thread.join(5)
+    httpd.server_close()
+    assert headers
+    assert not {name.lower() for name in headers[0]} & {'sentry-trace', 'baggage'}

@@ -76,6 +76,8 @@ def init_sentry(settings: Settings) -> bool:
         },
         include_local_variables=False,  # still read directly by some sentry-sdk code paths
         max_breadcrumbs=20,
+        # no sentry-trace/baggage headers on the webhook calls: the baggage carries the DSN's public key
+        trace_propagation_targets=[],
         before_send=scrubber.before_send,
         before_breadcrumb=scrubber.before_breadcrumb,
         integrations=[LoggingIntegration(level=None, event_level=logging.ERROR)],

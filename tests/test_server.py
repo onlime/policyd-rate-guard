@@ -3,6 +3,7 @@ import logging
 import socket
 import tempfile
 import threading
+import time
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -17,7 +18,7 @@ from policyd_rate_guard.config import DbSettings, Settings, TcpAddress, WebhookS
 from policyd_rate_guard.log import ContextFilter
 from policyd_rate_guard.protocol import PolicyRequest
 from policyd_rate_guard.server import PolicyServer, bind_listen_socket
-from policyd_rate_guard.service import INVALID_ACTION, Outcome
+from policyd_rate_guard.service import INVALID_ACTION, Handover, Outcome
 from policyd_rate_guard.webhook import Webhook, WebhookPayload
 
 from .helpers import postfix_request
@@ -27,19 +28,25 @@ PAYLOAD = WebhookPayload('Q', 'u@example.com', None, None, 1, None, None, '2026-
 
 @dataclass
 class FakeService:
-    """Answers DUNNO without sasl_username (pre-check), else OK (or ``outcome``) after ``delay``."""
+    """Answers DUNNO without sasl_username (pre-check), else OK (or ``outcome``) after ``delay`` (counting), and
+    ``store_delay`` (storing and logging, after the decision has been handed over)."""
 
     outcome: Outcome = field(default_factory=lambda: Outcome('OK'))
     delay: float = 0.0
+    store_delay: float = 0.0
     decided: list[PolicyRequest] = field(default_factory=list)
 
     def precheck(self, request: PolicyRequest) -> Outcome | None:
         return None if request.sasl_username else Outcome('DUNNO')
 
-    def decide(self, request: PolicyRequest) -> Outcome:
+    def decide(self, request: PolicyRequest, handover: Handover | None = None) -> Outcome:
         if self.delay:
             threading.Event().wait(self.delay)
         self.decided.append(request)
+        if handover is not None:
+            handover.hand_over(self.outcome)
+        if self.store_delay:
+            threading.Event().wait(self.store_delay)
         return self.outcome
 
 
@@ -169,7 +176,7 @@ async def test_unexpected_error_closes_the_connection(
     """A bug in the server itself: no answer, the connection is closed (Postfix then uses its default_action)."""
 
     class Broken(FakeService):
-        def decide(self, request: PolicyRequest) -> Outcome:
+        def decide(self, request: PolicyRequest, handover: Handover | None = None) -> Outcome:
             raise RuntimeError('bug')
 
     run = await server_factory(Broken())
@@ -292,6 +299,68 @@ async def test_undecided_requests_get_fail_action_before_postfix_gives_up(
     for _, writer in (first, second):
         writer.close()
     await run.server.shutdown()
+
+
+async def test_a_decision_made_in_time_is_answered_while_still_storing(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Counted before the timeout: Postfix gets the decision (and the webhook fires), not FAIL_ACTION."""
+    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.2)
+    webhook = FakeWebhook()
+    webhook.release.set()
+    blocked = Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD)
+    run = await server_factory(FakeService(blocked, store_delay=0.6), webhook)
+    reader, writer = await run.connect()
+    assert (
+        await ask(reader, writer, postfix_request('u@example.com')) == b'action=DEFER_IF_PERMIT Rate limit reached\n\n'
+    )
+    assert 'No decision within' not in caplog.text
+    for _ in range(100):
+        if webhook.calls:
+            break
+        await asyncio.sleep(0.01)
+    assert webhook.calls == [PAYLOAD]
+    writer.close()
+    await run.server.shutdown()
+
+
+async def test_a_decision_made_too_late_still_notifies(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Postfix got FAIL_ACTION, but the worker counted it as the crossing request: the webhook fires from the worker,
+    once (else the sender's period would pass without a notification)."""
+    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.2)
+    webhook = FakeWebhook()
+    webhook.release.set()
+    run = await server_factory(FakeService(Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD), delay=0.5), webhook)
+    reader, writer = await run.connect()
+    assert await ask(reader, writer, postfix_request('u@example.com')) == b'action=DUNNO\n\n'
+    for _ in range(100):
+        if webhook.calls:
+            break
+        await asyncio.sleep(0.01)
+    await asyncio.sleep(0.1)
+    assert webhook.calls == [PAYLOAD]
+    writer.close()
+    await run.server.shutdown()
+
+
+async def test_shutdown_waits_for_a_webhook_only_briefly(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A hanging webhook (e.g. DNS) must not hold a restart: requests queue in the socket meanwhile, and Postfix
+    gives up on them after 10 s and retries (counted twice)."""
+    monkeypatch.setattr(server_module, 'WEBHOOK_SHUTDOWN_GRACE', 0.3)
+    webhook = FakeWebhook()  # never released
+    run = await server_factory(FakeService(Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD)), webhook)
+    reader, writer = await run.connect()
+    await ask(reader, writer, postfix_request('u@example.com'))
+    writer.close()
+    started = time.monotonic()
+    await run.server.shutdown()
+    assert time.monotonic() - started < 2
+    assert 'Webhook call abandoned at shutdown (webhook for Q)' in caplog.text
+    webhook.release.set()
 
 
 async def test_webhook_failure_is_logged_with_the_queue_id(

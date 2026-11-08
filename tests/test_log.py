@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from policyd_rate_guard.config import Settings
-from policyd_rate_guard.log import LOGGER_NAME, configure_logging, queue_id_context
+from policyd_rate_guard.log import LOGGER_NAME, ContextFilter, configure_logging, queue_id_context
 from policyd_rate_guard.protocol import parse_request
 from policyd_rate_guard.ratelimit import Decision, MessageRecord
 from policyd_rate_guard.service import PolicyService
@@ -153,3 +153,14 @@ def test_syslog_line_matches_the_zabbix_item(
     assert re.search(r'policyd-rate-guard\[[0-9]+\]: (ERROR|CRITICAL)', message)
     # facility LOG_MAIL (2 * 8) + severity err (3), so the line ends up in mail.log
     assert re.fullmatch(r'<19>policyd-rate-guard\[\d+\]: ERROR QERR: Unhandled exception, answering DUNNO\x00', message)
+
+
+def test_queue_id_prefix_is_escaped_and_capped() -> None:
+    """The queue ID comes from the request, i.e. from any local client: no terminal escapes or fake lines."""
+    record = logging.LogRecord('x', logging.INFO, __file__, 1, 'm', None, None)
+    with queue_id_context('A\x1b[31m\rB' + 'x' * 100):
+        ContextFilter().filter(record)
+    prefix = record.queue_id_prefix  # type: ignore[attr-defined]
+    assert '\x1b' not in prefix and '\r' not in prefix
+    assert prefix.startswith('A\\x1b[31m\\x0dB')
+    assert len(prefix) <= 64 + len('…: ')

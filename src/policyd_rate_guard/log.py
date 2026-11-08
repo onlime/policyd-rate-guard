@@ -16,6 +16,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 
 from .config import Settings
+from .protocol import sanitize
 
 LOGGER_NAME = 'policyd-rate-guard'
 LOG_FORMAT = '%(asctime)s %(levelname)s %(queue_id_prefix)s%(message)s'
@@ -28,7 +29,8 @@ logger = logging.getLogger(LOGGER_NAME)
 
 @contextmanager
 def queue_id_context(queue_id: str | None) -> Iterator[None]:
-    token = queue_id_var.set(queue_id)
+    """Prefix log lines with the queue ID (from the request: escaped and capped, it could come from any client)."""
+    token = queue_id_var.set(sanitize(queue_id, 64) if queue_id else None)
     try:
         yield
     finally:

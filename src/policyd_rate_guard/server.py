@@ -11,13 +11,14 @@ import logging
 import signal
 import socket
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .config import Settings
 from .log import queue_id_context
-from .protocol import format_response, parse_request
-from .service import INVALID_ACTION, Outcome, PolicyService
+from .protocol import PolicyRequest, format_response, parse_request
+from .service import INVALID_ACTION, Handover, Outcome, PolicyService
 from .systemd import notify
 from .webhook import Webhook, WebhookPayload
 
@@ -28,6 +29,9 @@ SHUTDOWN_GRACE = 10.0
 # Seconds, below Postfix's policy timeout (timeout=10s): an undecided request gets FAIL_ACTION before Postfix gives
 # up and retries, and one still waiting for a worker is dropped, so a message is never counted twice
 DECIDE_TIMEOUT = 8.0
+# Seconds a shutdown waits for webhook calls in flight: a restart must not keep Postfix waiting (requests queue in
+# the socket meanwhile, and one that Postfix gives up on would be counted again on its retry)
+WEBHOOK_SHUTDOWN_GRACE = 2.0
 
 
 def bind_listen_socket(settings: Settings) -> socket.socket:
@@ -48,6 +52,7 @@ class PolicyServer:
         self.db_executor = ThreadPoolExecutor(settings.db.pool_maxconnections, thread_name_prefix='policy-db')
         self._connections: dict[asyncio.Task[None], bool] = {}  # task -> busy
         self._servers: list[asyncio.Server] = []
+        self._webhook_threads: set[threading.Thread] = set()
         self._stopping = False
 
     async def start(self, sockets: list[socket.socket]) -> None:
@@ -92,6 +97,11 @@ class PolicyServer:
             with contextlib.suppress(Exception):
                 await server.wait_closed()
         self.db_executor.shutdown(wait=False, cancel_futures=True)
+        deadline = time.monotonic() + WEBHOOK_SHUTDOWN_GRACE
+        while self._webhook_threads and time.monotonic() < deadline:
+            await asyncio.sleep(0.05)
+        for thread in list(self._webhook_threads):
+            self.logger.error('Webhook call abandoned at shutdown (%s)', thread.name)
         self.logger.info('Stopped')
 
     def _loop_exception(self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
@@ -157,28 +167,46 @@ class PolicyServer:
         outcome = self.service.precheck(request)
         if outcome is None:
             loop = asyncio.get_running_loop()
+            handover = Handover()
             try:
                 async with asyncio.timeout(DECIDE_TIMEOUT):
-                    outcome = await loop.run_in_executor(self.db_executor, self.service.decide, request)
+                    outcome = await loop.run_in_executor(self.db_executor, self._decide, request, handover)
             except TimeoutError:
-                with queue_id_context(request.queue_id):
-                    self.logger.error(
-                        'No decision within %.0f s (database slow or workers busy), answering %s',
-                        DECIDE_TIMEOUT,
-                        self.settings.fail_action,
-                    )
-                outcome = Outcome(self.settings.fail_action)
+                # Counted and decided, only storing and logging are still running: answer the decision
+                outcome = handover.give_up()
+                if outcome is None:
+                    with queue_id_context(request.queue_id):
+                        self.logger.error(
+                            'No decision within %.0f s (database slow or workers busy), answering %s',
+                            DECIDE_TIMEOUT,
+                            self.settings.fail_action,
+                        )
+                    outcome = Outcome(self.settings.fail_action)
+        return outcome
+
+    def _decide(self, request: PolicyRequest, handover: Handover) -> Outcome:
+        """Worker thread."""
+        outcome = self.service.decide(request, handover)
+        if handover.abandoned and outcome.notify is not None:
+            self._notify(outcome.notify)  # answered without this decision: nobody else will
         return outcome
 
     def _notify(self, payload: WebhookPayload) -> None:
-        # At most once per sender and period; a non-daemon thread, so a shutdown waits for it (timeouts apply)
+        # At most once per sender and period. A daemon thread: a shutdown waits WEBHOOK_SHUTDOWN_GRACE at most.
         if self.webhook is not None:
-            threading.Thread(target=self._call_webhook, args=(payload,), name='policy-webhook').start()
+            thread = threading.Thread(
+                target=self._call_webhook, args=(payload,), name=f'webhook for {payload.msgid}', daemon=True
+            )
+            self._webhook_threads.add(thread)
+            thread.start()
 
     def _call_webhook(self, payload: WebhookPayload) -> None:
-        if self.webhook is not None:
-            with queue_id_context(payload.msgid):
-                self.webhook.call(payload)
+        try:
+            if self.webhook is not None:
+                with queue_id_context(payload.msgid):
+                    self.webhook.call(payload)
+        finally:
+            self._webhook_threads.discard(threading.current_thread())
 
 
 async def _close(writer: asyncio.StreamWriter) -> None:

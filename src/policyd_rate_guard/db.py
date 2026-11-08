@@ -4,7 +4,7 @@ Without timeouts, a slow or locked MySQL server lets requests pile up until ``ma
 exhausted, which on a mail server also breaks Postfix's own MySQL lookups.
 """
 
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any, Protocol
 
@@ -25,6 +25,7 @@ WRITE_TIMEOUT = 10
 class Cursor(Protocol):
     def execute(self, query: str, args: object = None) -> int: ...
     def fetchone(self) -> dict[str, Any] | None: ...
+    def fetchall(self) -> Sequence[dict[str, Any]]: ...
     def close(self) -> None: ...
 
 

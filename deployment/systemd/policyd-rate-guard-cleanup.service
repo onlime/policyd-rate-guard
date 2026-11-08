@@ -3,9 +3,10 @@
 Description=PolicydRateGuard daily cleanup (reset counters and quotas, purge old messages)
 Documentation=https://github.com/onlime/policyd-rate-guard
 After=network.target mysql.service mariadb.service
-# Retried for up to an hour if resetting the counters fails (e.g. a row locked at midnight)
-StartLimitIntervalSec=1h
-StartLimitBurst=30
+# Retried every minute (RestartSec=) for about an hour if resetting the counters fails (e.g. a row locked at
+# midnight): automatic restarts count as starts, at most StartLimitBurst= within StartLimitIntervalSec=
+StartLimitIntervalSec=2h
+StartLimitBurst=60
 
 [Service]
 Type=oneshot

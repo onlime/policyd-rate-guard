@@ -11,7 +11,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - A blocked sender's mail was accepted (`DUNNO`) whenever anything failed after the decision, e.g. storing a `From` address longer than 255 characters under strict SQL mode. Values are clamped to the column sizes and the decision is always sent.
 - **Counter overflow:** `msg_counter`, `rcpt_counter`, `msg_total` and `rcpt_total` stop at 4294967295, the maximum of their `int unsigned` columns (`LEAST(… + n, 4294967295)` in the upsert). The totals are never reset, and blocked retries keep adding up to 1000 recipients each: once a total overflowed, every request of that sender failed under strict SQL mode (the MySQL default) and was answered with `FAIL_ACTION` (`DUNNO`), so its mail passed uncounted for good; under non-strict SQL mode the value was silently capped. The totals are statistics only: blocking uses the daily `msg_counter` and `rcpt_counter` (reset every night), so a total at the cap just stops growing and has no effect on the decision.
 - `recipient_count` is validated: a negative value (anyone who can connect to the policy port can send one) reset a sender's counter under non-strict SQL mode.
-- Sentry no longer receives local variables of stack frames, which included the webhook secret and the database password; events are scrubbed of email addresses, secrets and tokens.
+- Sentry no longer receives local variables of stack frames, which included the webhook secret and the database password; events are scrubbed of email addresses, secrets and tokens. No Sentry trace headers on the webhook calls (their `baggage` carried the DSN's public key).
 - Database connect, read, write and lock wait timeouts, and a decision within 8 s: a request that can't be decided in time gets `FAIL_ACTION` before Postfix's timeout, and one still waiting for a worker is dropped. A slow or locked database can no longer make requests pile up, or get a message counted twice when Postfix retries.
 - The configuration is read from an explicit file only (`load_dotenv()` searched parent directories) and lives in `/etc/policyd-rate-guard/` instead of the code directory.
 - The systemd units run as a dedicated user `policyd-rate-guard` (instead of `postfix`, the mail owner) with full sandboxing (`systemd-analyze security`: 1.1 instead of 9.0).
@@ -36,14 +36,15 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - asyncio server with persistent connections, as Postfix's policy protocol expects (0.x closed the connection after each request), idle timeout and graceful shutdown on `SIGTERM`; database work runs in a bounded thread pool, requests without `sasl_username` (inbound mail) are answered without the database.
 - systemd socket activation: the listening socket survives restarts, Postfix's connections wait instead of falling back to `DUNNO`.
 - The webhook is called after the reply to Postfix, in its own thread, with timeouts.
-- Correct queue IDs in the log under concurrency (0.x shared them across threads). The log line format is unchanged.
+- Correct queue IDs in the log under concurrency (0.x shared them across threads), with control characters escaped. The log line format is unchanged.
 - The log file is reopened after rotation, logrotate no longer restarts the daemon.
 - The webhook payload's `timestamp` is the time of the message (0.x always sent the daemon's start time).
-- Daily cleanup resets counters in one statement and purges old messages in batches.
+- Daily cleanup resets counters in one statement and purges old messages in batches. Each batch reads the oldest messages through the `created_at` index and deletes them by id, so the first purge of years of messages (0.x kept them forever) takes about as long per batch as any later one, whatever plan the optimizer would choose for a `DELETE … ORDER BY … LIMIT`.
 - An ERROR (once per stage) if the daemon is used outside the DATA, BDAT or END-OF-MESSAGE stage, where the recipient count is final; a request with a protocol state that Postfix never sends is answered as invalid.
-- The nightly cleanup is retried by systemd if resetting the counters fails (e.g. a row locked at midnight); a failed purge is logged and continued the next night.
+- The nightly cleanup is retried by systemd every minute for about an hour if resetting the counters fails (e.g. a row locked at midnight); a failed purge is logged and continued the next night.
 - `check` runs the statements of a policy request and the cleanup in a transaction that is rolled back, so a missing privilege or an unsuitable binlog format fails the check (and the Ansible deployment) instead of every request.
-- Webhook failures are logged at ERROR, with the queue ID of the message.
+- Webhook failures are logged at ERROR, with the queue ID of the message. A restart waits for a webhook call in flight for 2 s at most: a hanging call (e.g. DNS) kept the old process alive, and Postfix's requests waited in the socket until it gave up and retried them, which counted those messages twice.
+- A message counted after Postfix already got `FAIL_ACTION` (decision timeout) is logged and stored with the answer Postfix actually got (`status=ACCEPTED (DECIDE_TIMEOUT)` for `DUNNO`), and its webhook still fires; one counted just before the timeout gets its decision instead of `FAIL_ACTION`.
 - A failing Sentry initialization no longer stops the daemon.
 - Logs of libraries (urllib3, Sentry, yoyo) no longer end up in the policy log.
 

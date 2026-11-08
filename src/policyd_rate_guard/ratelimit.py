@@ -45,9 +45,14 @@ UPDATE `ratelimits` SET `msg_counter` = 0, `rcpt_counter` = 0,
     `quota` = IF(`quota_locked`, `quota`, `quota_reset`), `updated_at` = `updated_at`
 """
 
-PURGE_SQL = """
-DELETE FROM `messages` WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %(days)s DAY) ORDER BY `id` LIMIT %(batch)s
+# A batch of old messages in the order of the created_at index (which carries the id), then deleted by id. A DELETE
+# with ORDER BY and LIMIT leaves the plan to the optimizer, which may sort all matching rows for every batch: with
+# years of rows (0.x kept them forever) a single batch then takes longer than the read timeout, and never finishes.
+PURGE_SELECT_SQL = """
+SELECT `id` FROM `messages` FORCE INDEX (`messages_created_at_index`)
+WHERE `created_at` < DATE_SUB(CURDATE(), INTERVAL %(days)s DAY) ORDER BY `created_at`, `id` LIMIT %(batch)s
 """
+PURGE_DELETE_SQL = 'DELETE FROM `messages` WHERE `id` IN %(ids)s'
 
 # Touches no row: only checks the DELETE privilege for `check`
 CHECK_DELETE_SQL = 'DELETE FROM `messages` WHERE `id` = 0'
@@ -184,12 +189,14 @@ def purge_messages(db: Database, days: int, batch_size: int = 10000) -> int:
             conn.begin()
             cursor = conn.cursor()
             try:
-                count = cursor.execute(PURGE_SQL, {'days': days, 'batch': batch_size})
+                cursor.execute(PURGE_SELECT_SQL, {'days': days, 'batch': batch_size})
+                ids = [row['id'] for row in cursor.fetchall()]
+                if ids:
+                    deleted += cursor.execute(PURGE_DELETE_SQL, {'ids': ids})
                 conn.commit()
             finally:
                 cursor.close()
-            deleted += count
-            if count < batch_size:
+            if len(ids) < batch_size:
                 return deleted
 
 

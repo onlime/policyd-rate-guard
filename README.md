@@ -182,11 +182,11 @@ The log line of each counted message has this format (scripts may rely on it):
 2026-11-08 12:34:56,789 INFO 4XyZ1abc2: client=mail.example.net[192.0.2.10], helo=mail.example.net, sasl_method=PLAIN, sasl_username=user@example.com, from=user@example.com, to=rcpt@example.org, recipient_count=1, curr_count=12/1000, status=ACCEPTED
 ```
 
-Blocked messages are logged at `WARNING` with `status=BLOCKED`, the one that reached the quota with `status=BLOCKED (QUOTA_LIMIT_REACHED)`.
+Blocked messages are logged at `WARNING` with `status=BLOCKED`, the one that reached the quota with `status=BLOCKED (QUOTA_LIMIT_REACHED)`. A message counted after Postfix already got `FAIL_ACTION` (no decision within 8 s) shows the answer Postfix got, with `(DECIDE_TIMEOUT)`.
 
 ### Configure the API webhook (optional)
 
-PolicydRateGuard can call an external API when a sender reaches the quota, once per period (the first blocked message). The webhook is called after Postfix got its answer, with a 3 s connect and 10 s read timeout, so it can't delay mail. It POSTs a JSON object like this:
+PolicydRateGuard can call an external API when a sender reaches the quota, once per period (the first blocked message). The webhook is called after Postfix got its answer, with a 3 s connect and 10 s read timeout, so it can't delay mail; a restart waits for a call in flight for 2 s at most (logged at ERROR if abandoned). It POSTs a JSON object like this:
 
 ```json
 {
