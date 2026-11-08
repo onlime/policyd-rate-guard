@@ -249,13 +249,13 @@ class AccessApiWebhookPolicyd
 {
     public function handle(Request $request, Closure $next): Response
     {
-        /** @var Mailaccount $mailaccount */
+        /** @var \App\Models\Mailaccount $mailaccount */
         $mailaccount = $request->route('mailaccount');
         try {
-            $token = (new Parser(new JoseEncoder()))->parse((string) $request->bearerToken());
-            (new Validator())->assert(
+            $token = new Parser(new JoseEncoder)->parse((string) $request->bearerToken());
+            new Validator()->assert(
                 $token,
-                new SignedWith(new Sha256(), InMemory::base64Encoded(config('app.webhooks.secret'))),
+                new SignedWith(new Sha256, InMemory::base64Encoded(config('app.webhooks.secret'))),
                 new IssuedBy('policyd-rate-guard'),
                 new RelatedTo($mailaccount->username),
                 new StrictValidAt(SystemClock::fromSystemTimezone()),
