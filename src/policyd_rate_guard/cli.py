@@ -9,6 +9,7 @@ import argparse
 import asyncio
 import logging
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 from . import __version__
@@ -111,12 +112,13 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as e:
         sys.stderr.write(f'{e}\n')
         return EXIT_CONFIG
+    if args.command == 'check':
+        # Typically run as root (e.g. by Ansible before a restart): never create or touch the service's log file
+        return check(settings, configure_logging(replace(settings, log_file=None, syslog=False, log_console=True)))
     logger = configure_logging(settings)
     init_sentry(settings)
     match args.command:
         case 'cleanup':
             return cleanup(settings, logger)
-        case 'check':
-            return check(settings, logger)
         case _:
             return serve(settings, logger, getattr(args, 'require_socket_activation', False))
