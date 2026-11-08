@@ -138,7 +138,7 @@ $ systemctl reload postfix
 
 ### Upgrading from 0.7.x
 
-Use role v1.0.0, which does all of this. Manually:
+With Ansible, see "Upgrading from 0.x" in the [role's README](https://github.com/onlime/ansible-role-policyd-rate-guard#upgrading-from-0x): move the old installation away, then role v1.0.0 installs 1.0 fresh. Manually:
 
 1. Stop and disable the old service, which occupies port 10033: `systemctl disable --now policyd-rate-guard.service`.
 2. Don't reuse the old checkout: 0.x deployments made it owned by `postfix`, so it must be considered untrusted. Move it aside, clone the release fresh as root and create a new venv (steps 2–4 above).
