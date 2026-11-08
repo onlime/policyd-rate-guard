@@ -1,7 +1,50 @@
 # CHANGELOG
 
-## [v0.7.5](https://github.com/onlime/policyd-rate-guard/releases) (unreleased)
+## [v1.0.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v1.0.0) (unreleased)
 
+A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several security fixes. **Upgrade the Ansible role [`onlime.policyd_rate_guard`](https://github.com/onlime/ansible-role-policyd-rate-guard) to v1.0.0 together with this release**: the layout, the service user and the units changed, and role 0.x can't deploy it (see "Upgrading from 0.7.x" in the README).
+
+**Security:**
+
+- **Rate limit bypass by padding:** 0.x read only the first 2048 bytes of a policy request. Postfix sends `helo_name`, `sender`, `client_name` and `reverse_client_name` before `sasl_username`, so an authenticated sender could push `sasl_username` out of the request (e.g. with a 1900-character MAIL FROM local part, which Postfix accepts) and was answered with `DUNNO` without being counted. Requests are now read completely (up to 64 KiB, beyond that `DEFER_IF_PERMIT`), invalid UTF-8 no longer raises.
+- **Rate limit bypass by concurrency:** counters were read, incremented in Python and written back as absolute values. Parallel mails of one sender lost updates (30 parallel first mails were counted as 4) and the first mails of a new sender ran into a duplicate key error, answered with `DUNNO`. Counting is now a single atomic upsert; the daemon never writes `quota`, so quota changes made meanwhile (e.g. by an admin tool) are kept.
+- A blocked sender's mail was accepted (`DUNNO`) whenever anything failed after the decision, e.g. storing a `From` address longer than 255 characters under strict SQL mode. Values are clamped to the column sizes and the decision is always sent.
+- `recipient_count` is validated: a negative value (anyone who can connect to the policy port can send one) reset a sender's counter under non-strict SQL mode.
+- Sentry no longer receives local variables of stack frames, which included the webhook secret and the database password; events are scrubbed of email addresses, secrets and tokens.
+- Database connect/read/write and lock wait timeouts: a slow or locked database can no longer make requests pile up until the server's connections run out.
+- The configuration is read from an explicit file only (`load_dotenv()` searched parent directories) and lives in `/etc/policyd-rate-guard/` instead of the code directory.
+- The systemd units run as a dedicated user `policyd-rate-guard` (instead of `postfix`, the mail owner) with full sandboxing (`systemd-analyze security`: 1.1 instead of 9.0).
+- Dependencies are pinned with hashes and installed as binary wheels only.
+
+**Changed (breaking):**
+
+- Requires Python 3.13+ (Debian 13). Only PyMySQL is supported (`DB_DRIVER=sqlite3` is gone, the SQL is MySQL-specific); tested with MySQL 8.4 and 9.7 and MariaDB 12.3.
+- Package layout `src/policyd_rate_guard/`; run with `python -m policyd_rate_guard [serve|cleanup|check]`. `run.py`, `cleanup.py`, `setup.py` and `app/` are removed.
+- New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify` with watchdog.
+- Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.
+- `LOG_MSG_PREFIX` defaults to `False`.
+- Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer. The simple token (`WEBHOOK_USE_JWT=False`) is deprecated, use JWT.
+- `DB_POOL_MAXSHARED` is ignored (PyMySQL connections can't be shared).
+
+**Improved:**
+
+- asyncio server with persistent connections, as Postfix's policy protocol expects (0.x closed the connection after each request), connection limit, idle timeout and graceful shutdown on `SIGTERM`; database work runs in a bounded thread pool, requests without `sasl_username` (inbound mail) are answered without the database.
+- systemd socket activation: the listening socket survives restarts, Postfix's connections wait instead of falling back to `DUNNO`.
+- The webhook is called after the reply to Postfix, in its own thread pool, with timeouts.
+- Correct queue IDs in the log under concurrency (0.x shared them across threads). The log line format is unchanged.
+- The log file is reopened after rotation, logrotate no longer restarts the daemon.
+- The webhook payload's `timestamp` is the time of the message (0.x always sent the daemon's start time).
+- Daily cleanup resets counters in one statement and purges old messages in batches.
+- A warning if the daemon is not used in the DATA or END-OF-MESSAGE stage, where the recipient count is final.
+
+**Added:**
+
+- `DB_UNIX_SOCKET`, `DB_POOL_MAXCONNECTIONS`, `DB_CONNECT_TIMEOUT`, `DB_READ_TIMEOUT`, `DB_WRITE_TIMEOUT`, `DB_LOCK_WAIT_TIMEOUT`, `FAIL_ACTION`, `MAX_CONNECTIONS`, `IDLE_TIMEOUT`, `MAX_REQUEST_SIZE`, `SOCKET_BACKLOG`, `PURGE_BATCH_SIZE`, `WEBHOOK_ALLOW_HTTP`.
+- `check` command to validate the configuration and the database connection (used by the Ansible role before restarting).
+
+**Development:**
+
+- pyproject.toml, uv with `uv.lock`, ruff and strict mypy, pytest (unit, property-based, concurrency, database and end-to-end tests through a real Postfix), GitHub Actions for Python 3.13/3.14 × MySQL 8.4/9.7 × MariaDB 12.3, a Debian 13 deployment parity job, pip-audit, zizmor and Dependabot.
 
 ## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (2026-02-24)
 

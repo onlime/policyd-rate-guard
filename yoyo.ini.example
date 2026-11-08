@@ -1,5 +1,7 @@
+# /etc/policyd-rate-guard/yoyo.ini (root:root 0600): database migrations, run as root with a user that may change
+# the schema. Special characters in the password must be URL-encoded, and % doubled (%%).
 [DEFAULT]
-sources = database/migrations
-database = mysql://policyd-rate-guard:Pa55w0rd@localhost:3306/policyd-rate-guard
+sources = /opt/policyd-rate-guard/database/migrations
+database = mysql://policyd-rate-guard:change-me@localhost:3306/policyd-rate-guard
 batch_mode = on
 verbosity = 0

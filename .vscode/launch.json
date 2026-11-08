@@ -1,19 +1,22 @@
 {
     "configurations": [
         {
-            "name": "Python: Unit Tests",
-            "type": "python",
+            "name": "Python: pytest",
+            "type": "debugpy",
             "request": "launch",
-            "module": "unittest",
+            "module": "pytest",
             "justMyCode": true,
             "cwd": "${workspaceFolder}",
-            "args": [
-                "discover",
-                "-s",
-                "${workspaceFolder}/tests",
-                "-p",
-                "test_*.py"
-            ],
+            "args": ["-q"]
+        },
+        {
+            "name": "Python: policyd-rate-guard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "policyd_rate_guard",
+            "justMyCode": true,
+            "cwd": "${workspaceFolder}",
+            "args": ["--env-file", ".env", "serve"]
         }
     ]
 }
