@@ -158,7 +158,7 @@ Initial release with the following feature set:
 - **Logs detailed message information to Syslog** (using `LOG_MAIL` facility, so the logs end up in `mail.log`)
 - **Maximum failure safety:** On any unexpected exception, the daemon still replies with a `DUNNO` action, so that the mail is not getting rejected by Postfix. This is done both on Postfix integration side and application exception handling side.
 - **Block action message** `"Rate limit reached, retry later."` can be configured.
-- Lots of configuration params via a simple `.env` 
+- Lots of configuration params via a simple `.env`
 - **Tuned for high performance**, using network or unix sockets, and threading.
 - **Secure setup**, nothing running under `root`, only on `postfix` user.
 - A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/)), using Python virtual environment for easy `pip` install. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on any future major system upgrades.

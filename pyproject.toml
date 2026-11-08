@@ -111,11 +111,12 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["policyd_rate_guard"]
 branch = true
+patch = ["subprocess"]  # also measure the daemon started by the CLI tests
 
 [tool.coverage.report]
 show_missing = true
 skip_covered = true
-fail_under = 90
+fail_under = 95
 exclude_also = [
     "if TYPE_CHECKING:",
     "if __name__ == .__main__.:",

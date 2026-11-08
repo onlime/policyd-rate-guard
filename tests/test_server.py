@@ -160,6 +160,25 @@ async def test_incomplete_request_is_logged(running: Running, caplog: pytest.Log
     assert running.service.decided == []
 
 
+async def test_unexpected_error_closes_the_connection(
+    server_factory: Callable[..., Any], caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bug in the server itself: no answer, the connection is closed (Postfix then uses its default_action)."""
+
+    class Broken(FakeService):
+        def decide(self, request: PolicyRequest) -> Outcome:
+            raise RuntimeError('bug')
+
+    run = await server_factory(Broken())
+    reader, writer = await run.connect()
+    writer.write(postfix_request('u@example.com'))
+    await writer.drain()
+    assert await asyncio.wait_for(reader.read(), 5) == b''
+    assert 'Unhandled exception in connection handler' in caplog.text
+    writer.close()
+    await run.server.shutdown()
+
+
 async def test_webhook_runs_after_the_reply(server_factory: Callable[..., Any]) -> None:
     """A slow webhook must not delay the answer to Postfix (0.x called it before replying, without timeout)."""
     webhook = FakeWebhook()

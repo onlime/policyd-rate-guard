@@ -1,4 +1,8 @@
 import logging
+import logging.handlers
+import re
+import socket
+import tempfile
 import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
@@ -129,3 +133,32 @@ def test_console_and_default_handlers(make_settings: Callable[..., Settings]) ->
     assert [type(h) for h in configure_logging(make_settings(log_console=True)).handlers] == [logging.StreamHandler]
     # without any configured handler, log to stderr (journal under systemd)
     assert [type(h) for h in configure_logging(make_settings()).handlers] == [logging.StreamHandler]
+
+
+@pytest.mark.usefixtures('restore_logger')
+def test_syslog_line_matches_the_zabbix_item(
+    make_settings: Callable[..., Settings], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """infra's Zabbix item counts lines matching this pattern in mail.log: they mean mail was let through uncounted."""
+    directory = Path(tempfile.mkdtemp(prefix='prg-', dir='/tmp'))  # short path for AF_UNIX
+    path = directory / 'log.sock'
+    receiver = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)
+    receiver.bind(str(path))
+
+    class TestSysLogHandler(logging.handlers.SysLogHandler):
+        def __init__(self, address: str, facility: int) -> None:
+            super().__init__(str(path), facility)  # instead of /dev/log
+
+    monkeypatch.setattr(logging.handlers, 'SysLogHandler', TestSysLogHandler)
+    try:
+        logger = configure_logging(make_settings(syslog=True))
+        with queue_id_context('QERR'):
+            logger.error('Unhandled exception, answering DUNNO')
+        message = receiver.recv(4096).decode()
+    finally:
+        receiver.close()
+        path.unlink()
+        directory.rmdir()
+    assert re.search(r'policyd-rate-guard\[[0-9]+\]: (ERROR|CRITICAL)', message)
+    # facility LOG_MAIL (2 * 8) + severity err (3), so the line ends up in mail.log
+    assert re.fullmatch(r'<19>policyd-rate-guard\[\d+\]: ERROR QERR: Unhandled exception, answering DUNNO\x00', message)

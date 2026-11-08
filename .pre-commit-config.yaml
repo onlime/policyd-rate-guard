@@ -3,6 +3,8 @@ default_language_version:
   python: python3.13
 default_install_hook_types:
   - pre-push
+# Applied migrations are never touched, not even their whitespace
+exclude: ^database/migrations/
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.17.4
