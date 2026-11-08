@@ -1,3 +1,4 @@
+import socket
 import types
 from typing import Any
 
@@ -121,3 +122,13 @@ def test_database_errors_in_a_transaction_are_raised_at_once(fail: str, monkeypa
     assert server.committed == {'msg': 5, 'rcpt': 5}
     expected = [(1, 'INSERT'), (1, 'SELECT')] if fail == 'lost connection' else [(1, 'INSERT')]
     assert server.statements == expected  # nothing repeated, on no other connection
+
+
+def test_a_database_that_is_down_doesnt_stop_the_start() -> None:
+    """No connection is opened before the first request (DB_POOL_MINCACHED is ignored): the daemon starts and
+    answers FAIL_ACTION instead of failing (and systemd giving up after a few restarts)."""
+    with socket.socket() as probe:
+        probe.bind(('127.0.0.1', 0))
+        port = probe.getsockname()[1]  # nothing listens there
+    database = Database(DbSettings(host='127.0.0.1', port=port))
+    database.close()

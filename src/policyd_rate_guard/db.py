@@ -71,7 +71,9 @@ class Database:
     def __init__(self, settings: DbSettings) -> None:
         self._pool = PooledDB(
             creator=pymysql,
-            mincached=settings.pool_mincached,
+            # DB_POOL_MINCACHED is ignored: PooledDB would open those connections right here, so a database that's
+            # down at startup would stop the daemon instead of letting it answer FAIL_ACTION
+            mincached=0,
             maxcached=settings.pool_maxcached,
             maxconnections=settings.pool_maxconnections,
             blocking=True,  # wait for a free connection instead of failing (callers are bounded by the executor)

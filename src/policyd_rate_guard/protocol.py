@@ -14,7 +14,11 @@ COUNTING_STATES = frozenset({'DATA', 'BDAT', 'END-OF-MESSAGE'})
 # The other states in which Postfix may call a policy service, where the recipient count isn't final
 POSTFIX_STATES = frozenset({'CONNECT', 'EHLO', 'HELO', 'MAIL', 'RCPT', 'VRFY', 'ETRN'})
 
-_CONTROL_CHARS = {i: f'\\x{i:02x}' for i in (*range(0x20), 0x7F)}
+# C0 and C1 control characters (U+009B is an 8-bit CSI to some terminals), and the line and paragraph separators
+# that str.splitlines() splits on
+_CONTROL_CHARS = {i: f'\\x{i:02x}' for i in (*range(0x20), *range(0x7F, 0xA0))} | {
+    i: f'\\u{i:04x}' for i in (0x2028, 0x2029)
+}
 
 
 def sanitize(value: object, max_length: int = 1024) -> str:

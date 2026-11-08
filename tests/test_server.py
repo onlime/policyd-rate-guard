@@ -75,11 +75,16 @@ class Running:
 def server_factory(make_settings: Callable[..., Settings], logger: logging.Logger) -> Iterator[Callable[..., Any]]:
     servers: list[PolicyServer] = []
 
-    async def start(service: FakeService | None = None, webhook: Any = None, **overrides: Any) -> Running:
+    async def start(
+        service: FakeService | None = None, webhook: Any = None, small_buffers: bool = False, **overrides: Any
+    ) -> Running:
         settings = make_settings(listen=TcpAddress('127.0.0.1', 0), **overrides)
         service = service or FakeService()
         server = PolicyServer(settings, service, webhook, logger)
         sock = bind_listen_socket(settings)
+        if small_buffers:  # inherited by accepted connections: full after a few KiB instead of several MiB
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
         await server.start([sock])
         servers.append(server)
         return Running(server, service, sock.getsockname()[1])
@@ -317,11 +322,14 @@ async def test_the_decision_is_answered_while_still_storing(
     )
     assert time.monotonic() - started < 0.5
     assert 'No decision within' not in caplog.text
-    for _ in range(100):
+    # the webhook only after the message is stored (a receiver may look it up)
+    assert webhook.calls == []
+    for _ in range(300):
         if webhook.calls:
             break
         await asyncio.sleep(0.01)
     assert webhook.calls == [PAYLOAD]
+    assert time.monotonic() - started >= 1.0
     writer.close()
     await run.server.shutdown()
 
@@ -395,3 +403,75 @@ async def test_webhook_failure_is_logged_with_the_queue_id(
     assert records[0].queue_id_prefix == 'Q: '
     writer.close()
     await run.server.shutdown()
+
+
+async def _flood_without_reading(port: int) -> socket.socket:
+    """A client that pipelines requests and never reads its replies, until the server stops reading too."""
+    client = socket.socket()
+    client.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+    client.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+    client.connect(('127.0.0.1', port))
+    client.setblocking(False)
+    blocked = 0
+    while blocked < 20:
+        try:
+            client.send(postfix_request(None) * 100)  # answered DUNNO in the pre-check
+            blocked = 0
+        except BlockingIOError:
+            blocked += 1
+            await asyncio.sleep(0.01)
+    return client
+
+
+async def test_shutdown_doesnt_wait_for_a_client_that_never_reads(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Any local process can connect: one that never reads its replies blocked the shutdown for good (systemd then
+    kills the daemon after TimeoutStopSec, while Postfix's requests wait in the socket)."""
+    monkeypatch.setattr(server_module, 'SHUTDOWN_GRACE', 0.5)
+    monkeypatch.setattr(server_module, 'WRITE_TIMEOUT', 60)  # the shutdown itself must cope
+    caplog.set_level(logging.WARNING, logger='policyd-rate-guard')  # no DEBUG line for each of the requests
+    run = await server_factory(small_buffers=True)
+    client = await _flood_without_reading(run.port)
+    started = time.monotonic()
+    await asyncio.wait_for(run.server.shutdown(), 10)
+    assert time.monotonic() - started < 4
+    client.close()
+
+
+async def test_a_client_that_never_reads_is_disconnected(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr(server_module, 'WRITE_TIMEOUT', 0.3)
+    caplog.set_level(logging.WARNING, logger='policyd-rate-guard')
+    run = await server_factory(small_buffers=True)
+    client = await _flood_without_reading(run.port)
+    for _ in range(100):
+        if not run.server._connections:
+            break
+        await asyncio.sleep(0.05)
+    assert not run.server._connections
+    client.close()
+    await run.server.shutdown()
+
+
+async def test_a_webhook_after_the_shutdown_is_logged_not_lost_silently(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A request answered at the timeout, whose worker counts the crossing message only after the daemon stopped
+    (the process exits during the call): an ERROR instead of a webhook that silently never arrives."""
+    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.1)
+    monkeypatch.setattr(server_module, 'WEBHOOK_SHUTDOWN_GRACE', 0.2)
+    webhook = FakeWebhook()
+    webhook.release.set()
+    run = await server_factory(FakeService(Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD), delay=1.0), webhook)
+    reader, writer = await run.connect()
+    assert await ask(reader, writer, postfix_request('u@example.com')) == b'action=DUNNO\n\n'
+    writer.close()
+    await run.server.shutdown()
+    for _ in range(200):
+        if 'Webhook call skipped: the daemon has stopped' in caplog.text:
+            break
+        await asyncio.sleep(0.01)
+    assert 'Webhook call skipped: the daemon has stopped' in caplog.text
+    assert webhook.calls == []

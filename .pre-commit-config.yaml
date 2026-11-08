@@ -1,6 +1,4 @@
 # pip install pre-commit && pre-commit install (runs on git push)
-default_language_version:
-  python: python3.13
 default_install_hook_types:
   - pre-push
 # Applied migrations are never touched, not even their whitespace

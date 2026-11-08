@@ -26,11 +26,15 @@ BACKLOG = 256
 IDLE_TIMEOUT = 330.0  # seconds, longer than Postfix's smtpd_policy_service_max_idle (300s)
 MAX_REQUEST_SIZE = 65536  # bytes, far more than Postfix ever sends
 SHUTDOWN_GRACE = 10.0
+# Seconds to send a reply: Postfix reads it right away, a client that doesn't would block its connection (and a
+# shutdown) for good
+WRITE_TIMEOUT = 5.0
 # Seconds, below Postfix's policy timeout (timeout=10s): an undecided request gets FAIL_ACTION before Postfix gives
 # up and retries, and one still waiting for a worker is dropped, so a message is never counted twice
 DECIDE_TIMEOUT = 8.0
-# Seconds a shutdown waits for webhook calls in flight: a restart must not keep Postfix waiting (requests queue in
-# the socket meanwhile, and one that Postfix gives up on would be counted again on its retry)
+# Seconds a shutdown waits for workers still storing a decision, then for webhook calls in flight: a restart must
+# not keep Postfix waiting (requests queue in the socket meanwhile, and one that Postfix gives up on would be counted
+# again on its retry)
 WEBHOOK_SHUTDOWN_GRACE = 2.0
 
 
@@ -53,7 +57,9 @@ class PolicyServer:
         self._connections: dict[asyncio.Task[None], bool] = {}  # task -> busy
         self._servers: list[asyncio.Server] = []
         self._webhook_threads: set[threading.Thread] = set()
+        self._workers: set[asyncio.Future[Outcome]] = set()
         self._stopping = False
+        self._stopped = False
 
     async def start(self, sockets: list[socket.socket]) -> None:
         loop = asyncio.get_running_loop()
@@ -94,12 +100,18 @@ class PolicyServer:
             if pending:
                 await asyncio.wait(pending, timeout=1)
         for server in self._servers:
+            server.abort_clients()  # e.g. a client that never reads its replies
             with contextlib.suppress(Exception):
-                await server.wait_closed()
+                async with asyncio.timeout(1):
+                    await server.wait_closed()
         self.db_executor.shutdown(wait=False, cancel_futures=True)
+        # Workers whose request was answered already (timeout) may still store a decision and start its webhook
+        if self._workers:
+            await asyncio.wait(list(self._workers), timeout=WEBHOOK_SHUTDOWN_GRACE)
         deadline = time.monotonic() + WEBHOOK_SHUTDOWN_GRACE
         while self._webhook_threads and time.monotonic() < deadline:
             await asyncio.sleep(0.05)
+        self._stopped = True
         for thread in list(self._webhook_threads):
             self.logger.error('Webhook call abandoned at shutdown (%s)', thread.name)
         self.logger.info('Stopped')
@@ -144,7 +156,8 @@ class PolicyServer:
                 # Far larger than anything Postfix sends: never let it pass as DUNNO
                 self.logger.warning('Request exceeds %d bytes, answering and closing', MAX_REQUEST_SIZE)
                 writer.write(format_response(INVALID_ACTION))
-                await writer.drain()
+                async with asyncio.timeout(WRITE_TIMEOUT):
+                    await writer.drain()
                 return
             except TimeoutError:
                 self.logger.debug('Closing idle connection')
@@ -154,11 +167,10 @@ class PolicyServer:
             try:
                 outcome = await self._process(data)
                 writer.write(format_response(outcome.action))
-                await writer.drain()
+                async with asyncio.timeout(WRITE_TIMEOUT):
+                    await writer.drain()
             finally:
                 self._connections[task] = False
-            if outcome.notify is not None:
-                self._notify(outcome.notify)
 
     async def _process(self, data: bytes) -> Outcome:
         request = parse_request(data)
@@ -180,6 +192,8 @@ class PolicyServer:
 
         handover = Handover(on_decision)
         work = loop.run_in_executor(self.db_executor, self._decide, request, handover)
+        self._workers.add(work)
+        work.add_done_callback(self._workers.discard)
         work.add_done_callback(_retrieve)
         done, _ = await asyncio.wait({decided, work}, timeout=DECIDE_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
         if decided in done:
@@ -199,15 +213,19 @@ class PolicyServer:
         return outcome
 
     def _decide(self, request: PolicyRequest, handover: Handover) -> Outcome:
-        """Worker thread."""
+        """Worker thread. The webhook starts here, once the message is stored (Postfix may have its answer already):
+        a receiver that looks the message up finds it."""
         outcome = self.service.decide(request, handover)
-        if handover.abandoned and outcome.notify is not None:
-            self._notify(outcome.notify)  # answered without this decision: nobody else will
+        if outcome.notify is not None:
+            self._notify(outcome.notify)
         return outcome
 
     def _notify(self, payload: WebhookPayload) -> None:
         # At most once per sender and period. A daemon thread: a shutdown waits WEBHOOK_SHUTDOWN_GRACE at most.
-        if self.webhook is not None:
+        if self.webhook is not None and self._stopped:
+            with queue_id_context(payload.msgid):
+                self.logger.error('Webhook call skipped: the daemon has stopped')
+        elif self.webhook is not None:
             name = f'webhook for {sanitize(payload.msgid, 64)}'
             thread = threading.Thread(target=self._call_webhook, args=(payload,), name=name, daemon=True)
             self._webhook_threads.add(thread)
@@ -235,8 +253,11 @@ def _retrieve(future: asyncio.Future[Outcome]) -> None:
 
 async def _close(writer: asyncio.StreamWriter) -> None:
     writer.close()
-    with contextlib.suppress(Exception):
-        await writer.wait_closed()
+    try:
+        async with asyncio.timeout(1):
+            await writer.wait_closed()
+    except Exception:  # e.g. replies the client never reads
+        writer.transport.abort()
 
 
 def _describe(sock: socket.socket) -> str:

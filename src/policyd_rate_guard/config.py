@@ -47,7 +47,6 @@ class DbSettings:
     user: str = 'policyd-rate-guard'
     password: str = field(default='', repr=False)
     database: str = 'policyd-rate-guard'
-    pool_mincached: int = 0
     pool_maxcached: int = 10
     pool_maxconnections: int = 10
     lock_wait_timeout: int = 5
@@ -160,12 +159,16 @@ def _validate_webhook(webhook: WebhookSettings, errors: list[str]) -> None:
         errors.append('WEBHOOK_URL: must start with https:// (set WEBHOOK_ALLOW_HTTP=True for local development)')
     else:
         try:
-            names = {name for _, name, _, _ in string.Formatter().parse(webhook.url) if name is not None}
+            fields = [
+                (name, spec, conv) for _, name, spec, conv in string.Formatter().parse(webhook.url) if name is not None
+            ]
         except ValueError as e:
             errors.append(f'WEBHOOK_URL: invalid placeholder syntax ({e})')
         else:
-            if unknown := names - WEBHOOK_PLACEHOLDERS:
+            if unknown := {name for name, _, _ in fields} - WEBHOOK_PLACEHOLDERS:
                 errors.append(f'WEBHOOK_URL: unknown placeholder(s) {sorted(unknown)}')
+            elif any(spec or conv for _, spec, conv in fields):
+                errors.append('WEBHOOK_URL: placeholders take no format spec or conversion, only {name}')
     if not webhook.secret:
         errors.append('WEBHOOK_SECRET: required when WEBHOOK_ENABLED=True')
     else:
@@ -198,7 +201,6 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         user=r.text('DB_USER', 'policyd-rate-guard'),
         password=r.secret('DB_PASSWORD'),
         database=r.text('DB_DATABASE', 'policyd-rate-guard'),
-        pool_mincached=r.integer('DB_POOL_MINCACHED', 0),
         pool_maxcached=r.integer('DB_POOL_MAXCACHED', 10),
         pool_maxconnections=r.integer('DB_POOL_MAXCONNECTIONS', 10, 1, 1000),
         lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 7),  # ends before DECIDE_TIMEOUT (8 s)

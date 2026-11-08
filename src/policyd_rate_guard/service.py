@@ -160,7 +160,10 @@ class PolicyService:
             try:
                 store_message(conn, given, record)
             except Exception:
-                self.logger.exception('Failed to store message')
+                if answered:
+                    self.logger.exception('Failed to store message')
+                else:  # the event loop logged this request's timeout at ERROR already
+                    self.logger.warning('Failed to store message', exc_info=True)
 
         self._log_decision(request, record, given, None if answered else 'DECIDE_TIMEOUT')
         return outcome

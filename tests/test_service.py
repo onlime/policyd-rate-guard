@@ -187,3 +187,31 @@ def test_counted_after_the_answer_records_what_postfix_got(
     assert handover.abandoned
     assert store.call_args.args[1].blocked is stored_blocked
     assert f'status={status} (DECIDE_TIMEOUT)' in caplog.text
+
+
+def test_a_failed_store_after_the_timeout_answer_is_a_warning(
+    make_settings: Callable[..., Settings],
+    logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One ERROR per timeout: the event loop logged it already."""
+    from policyd_rate_guard import service as service_module
+    from policyd_rate_guard.ratelimit import Decision
+
+    @contextmanager
+    def connection() -> Any:
+        yield MagicMock()
+
+    db = MagicMock()
+    db.connection = connection
+    handover = Handover()
+
+    def count(*args: Any) -> Decision:
+        handover.give_up()
+        return Decision(1, 5, 5, 1, 1, blocked=False, was_blocked=False)
+
+    monkeypatch.setattr(service_module, 'count_message', count)
+    monkeypatch.setattr(service_module, 'store_message', MagicMock(side_effect=RuntimeError('Lock wait timeout')))
+    service(make_settings(), db).decide(parse_request(postfix_request('u@example.com')), handover)
+    assert [r.levelname for r in caplog.records if r.getMessage() == 'Failed to store message'] == ['WARNING']

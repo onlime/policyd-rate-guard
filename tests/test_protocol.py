@@ -75,3 +75,10 @@ def test_recipient_count_with_too_many_digits() -> None:
     """int() refuses more than 4300 digits: that must be an invalid value, not an exception."""
     request = parse_request(postfix_request('u@example.com', recipient_count='9' * 5000))
     assert request.recipient_count(1_000_000) is None
+
+
+def test_sanitize_escapes_c1_controls_and_line_separators() -> None:
+    """U+009B is an 8-bit CSI to some terminals; U+2028/2029 split a line for str.splitlines(). Postfix passes them on
+    from an SMTPUTF8 MAIL FROM."""
+    assert sanitize('a\x9b31m\x85b\u2028c\u2029d\x7f') == 'a\\x9b31m\\x85b\\u2028c\\u2029d\\x7f'
+    assert sanitize('jörg@exämple.org') == 'jörg@exämple.org'

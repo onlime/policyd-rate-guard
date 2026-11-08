@@ -28,7 +28,7 @@ But let me name some features that make it stand out from other solutions:
 - Keeps **totals** of all messages/recipients sent for each sender.
 - Stores **detailed information for all sent messages** (`msgid, sender, rcpt_count, blocked, from_addr, to_addr, client ip and hostname`) in the `messages` table, purged after `MESSAGE_RETENTION` days.
 - **Logs detailed message information** to a file, the journal and/or syslog (`LOG_MAIL` facility, so the logs end up in `mail.log`).
-- **Maximum failure safety:** if the daemon or the database is unavailable, Postfix carries on (`default_action=DUNNO`, `FAIL_ACTION=DUNNO`), so mail is never rejected because of PolicydRateGuard. Requests that don't come from Postfix can't trigger that path.
+- **Maximum failure safety:** if the daemon or the database is unavailable, Postfix carries on (`default_action=DUNNO`, `FAIL_ACTION=DUNNO`), so mail is never rejected because of PolicydRateGuard. Malformed requests are answered `DEFER_IF_PERMIT`, never `DUNNO`; to keep other local users away from the daemon, use a unix socket (see below).
 - **Block action message** `"Rate limit reached, retry later"` can be configured.
 - Lots of configuration params via a simple `.env` file, all validated at startup.
 - **Secure setup:** a dedicated unprivileged system user, systemd sandboxing and socket activation, no secrets in error reports.
@@ -162,7 +162,7 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `DB_UNIX_SOCKET` | | Database unix socket, e.g. `/run/mysqld/mysqld.sock`; overrides host and port |
 | `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` | `policyd-rate-guard`, empty, `policyd-rate-guard` | Credentials and database name |
 | `DB_POOL_MAXCONNECTIONS` | `10` | Database connections, also the number of requests processed in parallel |
-| `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED` | `0`, `10` | [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) tuning |
+| `DB_POOL_MAXCACHED` | `10` | Idle connections kept in the [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) pool |
 | `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds (1–7) to wait for a locked row or table before answering `FAIL_ACTION`. A request not decided within 8 s gets `FAIL_ACTION` too, before Postfix's `timeout=10s`. |
 | `QUOTA` | `1000` | Default quota (recipients and messages per period) of new senders |
 | `ACTION_TEXT_BLOCKED` | `Rate limit reached, retry later` | Text of the `DEFER_IF_PERMIT` answer for senders over quota |
