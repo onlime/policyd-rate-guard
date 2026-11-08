@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [v1.0.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v1.0.0) (unreleased)
+## [v1.0.0](https://github.com/onlime/policyd-rate-guard/releases/tag/v1.0.0) (2026-11-08)
 
 A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several security fixes. **Upgrade the Ansible role [`onlime.policyd_rate_guard`](https://github.com/onlime/ansible-role-policyd-rate-guard) to v1.0.0 together with this release**: the layout, the service user and the units changed, and role 0.x can't deploy it (see "Upgrading from 0.7.x" in the README).
 
