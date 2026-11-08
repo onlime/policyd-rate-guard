@@ -224,26 +224,24 @@ payload = {
 }
 ```
 
-Verify it with a JWT library: check the signature, `iss`, `exp` and that `sub` matches the sender. In a Laravel app, this is usually done in a middleware, with route model binding for the sender (`routes/api.php`):
+Verify it with a JWT library: the signature, the validity (`iat`, `nbf`, `exp`) and that `sub` matches the sender. In a Laravel app, this is usually done in a middleware, with route model binding for the sender (`routes/api.php`):
 
 ```php
 Route::post('/policyd/{mailaccount:username}', PolicydWebhookController::class)
     ->middleware(AccessApiWebhookPolicyd::class);
 ```
 
-The middleware, using [`lcobucci/jwt`](https://github.com/lcobucci/jwt) and [`lcobucci/clock`](https://github.com/lcobucci/clock):
+The middleware, using [`lcobucci/jwt`](https://github.com/lcobucci/jwt) and [`lcobucci/clock`](https://github.com/lcobucci/clock). A missing or invalid token, or one for another sender, gets a 403:
 
 ```php
+use DateInterval;
 use Lcobucci\Clock\SystemClock;
-use Lcobucci\JWT\Encoding\JoseEncoder;
+use Lcobucci\JWT\Exception as JwtException;
+use Lcobucci\JWT\JwtFacade;
 use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
-use Lcobucci\JWT\Token\Parser;
-use Lcobucci\JWT\Validation\Constraint\IssuedBy;
-use Lcobucci\JWT\Validation\Constraint\RelatedTo;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use Lcobucci\JWT\Validation\Constraint\StrictValidAt;
-use Lcobucci\JWT\Validation\Validator;
 
 class AccessApiWebhookPolicyd
 {
@@ -252,17 +250,16 @@ class AccessApiWebhookPolicyd
         /** @var \App\Models\Mailaccount $mailaccount */
         $mailaccount = $request->route('mailaccount');
         try {
-            $token = new Parser(new JoseEncoder)->parse((string) $request->bearerToken());
-            new Validator()->assert(
-                $token,
+            $sub = new JwtFacade()->parse(
+                (string) $request->bearerToken(),
                 new SignedWith(new Sha256, InMemory::base64Encoded(config('app.webhooks.secret'))),
-                new IssuedBy('policyd-rate-guard'),
-                new RelatedTo($mailaccount->username),
-                new StrictValidAt(SystemClock::fromSystemTimezone()),
-            );
-        } catch (\Throwable) {
-            abort(403, 'You are not allowed to access this webhook.');
+                new StrictValidAt(SystemClock::fromSystemTimezone(), new DateInterval('PT10S')), // leeway for clock skew
+            )->claims()->get('sub');
+        } catch (JwtException) {
+            $sub = null;
         }
+        abort_if($sub !== $mailaccount->username, 403, 'You are not allowed to access this webhook.');
+
         return $next($request);
     }
 }
