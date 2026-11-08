@@ -167,7 +167,7 @@ def reset_counters(db: Database) -> int:
     return changed
 
 
-def purge_messages(db: Database, days: int, batch_size: int) -> int:
+def purge_messages(db: Database, days: int, batch_size: int = 10000) -> int:
     """Delete messages older than ``days`` in batches (short locks, even for a first purge of years of rows)."""
     deleted = 0
     with db.connection() as conn:

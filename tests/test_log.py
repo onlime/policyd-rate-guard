@@ -34,10 +34,10 @@ def test_log_line_format_is_unchanged(tmp_path: Path, make_settings: Callable[..
     log_file = tmp_path / 'policyd.log'
     settings = make_settings(log_file=log_file, log_level='INFO')
     logger = configure_logging(settings)
-    service = PolicyService(settings, db=None, logger=logger)  # type: ignore[arg-type]
+    service = PolicyService(settings, db=None, logger=logger)
     request = parse_request(postfix_request('user@example.com', recipient_count=2, queue_id='4XyZ1abc2'))
     record = MessageRecord('4XyZ1abc2', 'user@example.com', 2, 'from@example.com', 'rcpt@example.org',
-                           '192.0.2.10', 'client.example.net', None)  # type: ignore[arg-type]  # fmt: skip
+                           '192.0.2.10', 'client.example.net', None)  # fmt: skip
     decision = Decision(1, 1000, 1000, 3, 7, blocked=False, was_blocked=False)
     with queue_id_context('4XyZ1abc2'):
         service._log_decision(request, record, decision)
@@ -58,9 +58,9 @@ def test_log_line_format_is_unchanged(tmp_path: Path, make_settings: Callable[..
 def test_blocked_and_crossing_lines(tmp_path: Path, make_settings: Callable[..., Settings]) -> None:
     log_file = tmp_path / 'policyd.log'
     settings = make_settings(log_file=log_file)
-    service = PolicyService(settings, db=None, logger=configure_logging(settings))  # type: ignore[arg-type]
+    service = PolicyService(settings, db=None, logger=configure_logging(settings))
     request = parse_request(postfix_request('user@example.com'))
-    record = MessageRecord('Q1', 'user@example.com', 1, None, None, None, None, None)  # type: ignore[arg-type]
+    record = MessageRecord('Q1', 'user@example.com', 1, None, None, None, None, None)
     service._log_decision(request, record, Decision(1, 5, 5, 6, 6, blocked=True, was_blocked=False))
     service._log_decision(request, record, Decision(1, 5, 5, 7, 7, blocked=True, was_blocked=True))
     lines = log_file.read_text().splitlines()

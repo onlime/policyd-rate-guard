@@ -54,7 +54,7 @@ def test_db_failure_answers_fail_action(
     db = MagicMock()
     db.connection.side_effect = ConnectionError('MySQL server has gone away')
     svc = service(make_settings(fail_action=fail_action), db)
-    assert svc.handle(parse_request(postfix_request('u@example.com', queue_id='QFAIL'))) == Outcome(fail_action)
+    assert svc.decide(parse_request(postfix_request('u@example.com', queue_id='QFAIL'))) == Outcome(fail_action)
     assert 'QFAIL: Unhandled exception, answering ' + fail_action in caplog.text
 
 
@@ -89,7 +89,7 @@ def test_store_failure_keeps_the_decision(
         webhook=WebhookSettings(enabled=True, url='https://x/{sender}', secret='c2VjcmV0'),
         action_text_blocked='Slow down',
     )
-    outcome = service(settings, db).handle(parse_request(postfix_request('u@example.com', recipient_count=6)))
+    outcome = service(settings, db).decide(parse_request(postfix_request('u@example.com', recipient_count=6)))
     assert outcome.action == 'DEFER_IF_PERMIT Slow down'
     assert outcome.notify is not None
     assert outcome.notify.sender == 'u@example.com'

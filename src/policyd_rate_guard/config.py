@@ -9,19 +9,18 @@ import os
 import string
 from base64 import b64decode
 from collections.abc import Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Literal
 
 from dotenv import dotenv_values
 
+from .webhook import WebhookPayload
+
 DEFAULT_ENV_FILE = Path('/etc/policyd-rate-guard/policyd-rate-guard.env')
 
 # Keys of the webhook payload, usable as {placeholder} in WEBHOOK_URL (plus {token})
-WEBHOOK_PLACEHOLDERS = frozenset({
-    'msgid', 'sender', 'client_address', 'client_name', 'rcpt_count', 'from_addr', 'to_addr', 'timestamp',
-    'quota', 'quota_reset', 'used', 'token',
-})  # fmt: skip
+WEBHOOK_PLACEHOLDERS = frozenset(f.name for f in fields(WebhookPayload)) | {'token'}
 
 _TRUE = frozenset({'y', 'yes', 't', 'true', 'on', '1'})
 _FALSE = frozenset({'n', 'no', 'f', 'false', 'off', '0', ''})
@@ -40,14 +39,6 @@ class TcpAddress:
 
 
 @dataclass(frozen=True, slots=True)
-class UnixAddress:
-    path: Path
-
-
-type ListenAddress = TcpAddress | UnixAddress
-
-
-@dataclass(frozen=True, slots=True)
 class DbSettings:
     host: str = 'localhost'
     port: int = 3306
@@ -59,9 +50,6 @@ class DbSettings:
     pool_maxcached: int = 10
     pool_maxconnections: int = 10
     pool_maxusage: int = 10000
-    connect_timeout: int = 5
-    read_timeout: int = 10
-    write_timeout: int = 10
     lock_wait_timeout: int = 5
 
 
@@ -72,8 +60,6 @@ class WebhookSettings:
     secret: str = field(default='', repr=False)
     use_jwt: bool = False
     allow_http: bool = False
-    connect_timeout: float = 3.0
-    read_timeout: float = 10.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,19 +69,13 @@ class Settings:
     quota: int = 1000
     action_text_blocked: str = 'Rate limit reached, retry later'
     fail_action: Literal['DUNNO', 'DEFER_IF_PERMIT'] = 'DUNNO'
-    listen: ListenAddress = field(default_factory=lambda: TcpAddress('127.0.0.1', 10033))
-    socket_backlog: int = 256
-    idle_timeout: float = 330.0
-    max_request_size: int = 65536
-    max_connections: int = 1024
-    max_recipient_count: int = 1_000_000
+    listen: TcpAddress = field(default_factory=lambda: TcpAddress('127.0.0.1', 10033))
     log_level: str = 'INFO'
     log_file: Path | None = None
     log_msg_prefix: bool = False
     log_console: bool = False
     syslog: bool = False
     message_retention: int = 0
-    purge_batch_size: int = 10000
     sentry_dsn: str | None = field(default=None, repr=False)
     sentry_environment: str = 'dev'
 
@@ -149,13 +129,14 @@ class _Reader:
         return default
 
 
-def parse_listen_address(value: str) -> ListenAddress:
-    """Parse ``SOCKET``: either a unix socket path or ``host,port`` (IPv6 hosts with or without brackets)."""
+def parse_listen_address(value: str) -> TcpAddress:
+    """Parse ``SOCKET`` as ``host,port`` (IPv6 hosts with or without brackets).
+
+    A unix socket is set up by systemd socket activation (``ListenStream=/path``), not by the daemon.
+    """
     host, sep, port = value.rpartition(',')
     if not sep:
-        if not value.startswith('/'):
-            raise ConfigError(f'SOCKET: unix socket path must be absolute, got {value!r}')
-        return UnixAddress(Path(value))
+        raise ConfigError(f'SOCKET: expected host,port, got {value!r} (use a systemd socket unit for a unix socket)')
     host = host.strip().removeprefix('[').removesuffix(']')
     if not host:
         raise ConfigError(f'SOCKET: missing host in {value!r}')
@@ -212,9 +193,6 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         pool_maxcached=r.integer('DB_POOL_MAXCACHED', 10),
         pool_maxconnections=r.integer('DB_POOL_MAXCONNECTIONS', 10, 1, 1000),
         pool_maxusage=r.integer('DB_POOL_MAXUSAGE', 10000),
-        connect_timeout=r.integer('DB_CONNECT_TIMEOUT', 5, 1, 300),
-        read_timeout=r.integer('DB_READ_TIMEOUT', 10, 1, 300),
-        write_timeout=r.integer('DB_WRITE_TIMEOUT', 10, 1, 300),
         lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 300),
     )
     webhook = WebhookSettings(
@@ -240,7 +218,7 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         errors.append(f'LOG_LEVEL: must be one of {", ".join(_LOG_LEVELS)}, got {log_level!r}')
         log_level = 'INFO'
 
-    listen: ListenAddress = TcpAddress('127.0.0.1', 10033)
+    listen = TcpAddress('127.0.0.1', 10033)
     if socket_value := r.raw('SOCKET'):
         try:
             listen = parse_listen_address(socket_value)
@@ -255,17 +233,12 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         action_text_blocked=action_text,
         fail_action='DEFER_IF_PERMIT' if fail_action == 'DEFER_IF_PERMIT' else 'DUNNO',
         listen=listen,
-        socket_backlog=r.integer('SOCKET_BACKLOG', 256, 1, 65535),
-        idle_timeout=float(r.integer('IDLE_TIMEOUT', 330, 1, 3600)),
-        max_request_size=r.integer('MAX_REQUEST_SIZE', 65536, 4096, 1048576),
-        max_connections=r.integer('MAX_CONNECTIONS', 1024, 1, 65535),
         log_level=log_level,
         log_file=Path(log_file) if log_file else None,
         log_msg_prefix=r.flag('LOG_MSG_PREFIX', False),
         log_console=r.flag('LOG_CONSOLE', False),
         syslog=r.flag('SYSLOG', False),
         message_retention=r.integer('MESSAGE_RETENTION', 0),
-        purge_batch_size=r.integer('PURGE_BATCH_SIZE', 10000, 1, 1_000_000),
         sentry_dsn=r.optional('SENTRY_DSN'),
         sentry_environment=r.text('SENTRY_ENVIRONMENT', 'dev'),
     )

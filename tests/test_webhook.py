@@ -40,7 +40,7 @@ def mock_post(hook: Webhook, status: int = 200, text: str = '{"success": true}')
     response.status_code = status
     response.text = text
     post = MagicMock(return_value=response)
-    hook.session.post = post  # type: ignore[method-assign]
+    hook.session.post = post
     return post
 
 
@@ -103,7 +103,7 @@ def test_placeholders_are_url_encoded(logger: logging.Logger) -> None:
 def test_failed_call_logs_no_token(logger: logging.Logger, caplog: pytest.LogCaptureFixture) -> None:
     hook = webhook(logger)
     token = hook.simple_token('test@example.com')
-    hook.session.post = MagicMock(  # type: ignore[method-assign]
+    hook.session.post = MagicMock(
         side_effect=requests.ConnectionError(f'Max retries exceeded with url: /?token={token}')
     )
     assert not hook.call(payload())

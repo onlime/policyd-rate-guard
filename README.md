@@ -13,21 +13,30 @@ A slick sender rate limit policy daemon for Postfix, written in Python.
 
 ## Features ✨
 
-PolicydRateGuard is a Postfix policy daemon with only one purpose: limit senders (SASL users) by the number of messages and recipients they send per day.
+Actually, PolicydRateGuard is just a super simple Postfix policy daemon with only one purpose: limit senders (SASL users) by the number of messages and recipients they send.
 
-- **Simple Postfix integration** with `check_policy_service` in `smtpd_data_restrictions`, where the recipient count is final.
-- **Individual quotas per sender** (SASL username), persistent or only for the current period (`quota` vs. `quota_reset`, `quota_locked`).
-- Limits the **number of recipients** (and messages) per period. The period is defined by the daily cleanup timer, which resets the counters.
+But let me name some features that make it stand out from other solutions:
+
+- **Super easy Postfix integration** using `check_policy_service` in `smtpd_data_restrictions`, where the recipient count is final.
+- **Tuned for high performance:** an asyncio server with persistent Postfix connections, and a bounded [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/) connection pool with timeouts.
 - **Exact under concurrency:** each message is counted with one atomic database statement, so parallel connections of one sender can't slip past the quota.
-- Keeps counting while a sender is over quota, so you see who keeps retrying, and keeps totals per sender.
-- Stores details of every message (`msgid, sender, rcpt_count, blocked, from_addr, to_addr, client ip and hostname`) in the `messages` table, purged after `MESSAGE_RETENTION` days.
-- **Detailed log lines** to a file, the journal and/or syslog (`LOG_MAIL`, so they end up in `mail.log`).
-- **Webhook** when a sender reaches the quota (once per period), authenticated with a JWT, e.g. to notify the sender.
-- **Fail-safe:** if the daemon or the database is unavailable, Postfix carries on (`default_action=DUNNO`, `FAIL_ACTION=DUNNO`). Requests that don't come from Postfix can't trigger that path.
-- **Hardened:** dedicated system user, systemd sandboxing, socket activation, hash-pinned dependencies, no secrets in error reports.
-- asyncio server with persistent connections, bounded database connection pool with timeouts.
-- An Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for the installation on a Debian mail server.
-- **Well maintained**: in production at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mail server architecture.
+- Set **individual sender (SASL username) quotas**, which can be both persistent or only for the current time period (`quota`, `quota_reset`, `quota_locked`).
+- Limit senders to **number of recipients** (and messages) per time period.
+- Automatically fills the `ratelimits` table with new senders (SASL username) upon their first email sent.
+- Set your own **time period (usually 24hrs)** by resetting the counters via the systemd cleanup timer (or a cronjob).
+- Continues to raise counters (`msg_counter`, `rcpt_counter`) even in over quota state, so you know if a sender keeps retrying/spamming.
+- Keeps **totals** of all messages/recipients sent for each sender.
+- Stores **detailed information for all sent messages** (`msgid, sender, rcpt_count, blocked, from_addr, to_addr, client ip and hostname`) in the `messages` table, purged after `MESSAGE_RETENTION` days.
+- **Logs detailed message information** to a file, the journal and/or syslog (`LOG_MAIL` facility, so the logs end up in `mail.log`).
+- **Maximum failure safety:** if the daemon or the database is unavailable, Postfix carries on (`default_action=DUNNO`, `FAIL_ACTION=DUNNO`), so mail is never rejected because of PolicydRateGuard. Requests that don't come from Postfix can't trigger that path.
+- **Block action message** `"Rate limit reached, retry later"` can be configured.
+- Lots of configuration params via a simple `.env` file, all validated at startup.
+- **Secure setup:** a dedicated unprivileged system user, systemd sandboxing and socket activation, no secrets in error reports.
+- **Supports external API webhooks**, authenticated with a JWT (or the deprecated simple token). The webhook is triggered when a sender reaches the quota for the first time in a period, so you can send out notifications through your own or any 3rd-party app.
+- **Sentry** integration for exception reporting.
+- A super slick minimal codebase with **only a few dependencies** ([PyMySQL](https://pypi.org/project/pymysql/), [DBUtils](https://webwareforpython.github.io/DBUtils/), [python-dotenv](https://pypi.org/project/python-dotenv/), [yoyo-migrations](https://pypi.org/project/yoyo-migrations/), plus requests, PyJWT and sentry-sdk), installed with plain `pip` in a virtual environment. PyMySQL is a pure-Python MySQL client library, so you won't have any trouble on future major system upgrades.
+- Provides an Ansible Galaxy role [`onlime.policyd_rate_guard`](https://galaxy.ansible.com/onlime/policyd_rate_guard) for easy installation on a Debian mailserver.
+- A **well maintained** project, as it is in active use at [Onlime GmbH](https://www.onlime.ch/), a Swiss webhoster with a rock-solid mailserver architecture.
 
 ## Requirements
 
@@ -70,8 +79,7 @@ PolicydRateGuard is a Postfix policy daemon with only one purpose: limit senders
    $ git clone --branch v1.0.0 https://github.com/onlime/policyd-rate-guard.git /opt/policyd-rate-guard
    $ cd /opt/policyd-rate-guard
    $ python3 -m venv venv
-   $ venv/bin/pip install --require-hashes --only-binary=:all: --no-deps -r requirements.txt
-   $ echo /opt/policyd-rate-guard/src > "$(venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/policyd-rate-guard.pth"
+   $ venv/bin/pip install --only-binary=:all: .
    ```
 
 3. Configuration in `/etc/policyd-rate-guard/`, readable only by root and the service:
@@ -132,6 +140,7 @@ Use role v1.0.0, which does all of this. Manually:
 3. Move the configuration from `/opt/policyd-rate-guard/.env` to `/etc/policyd-rate-guard/policyd-rate-guard.env`, and `yoyo.ini` to `/etc/policyd-rate-guard/yoyo.ini` with an absolute `sources = /opt/policyd-rate-guard/database/migrations`. Delete the old files, they were world-readable: rotate the passwords and the webhook secret.
 4. Replace `run.py`/`cleanup.py` in custom units or scripts with `python -m policyd_rate_guard serve` / `cleanup`.
 5. Set `MESSAGE_RETENTION` if you haven't: 0.x kept all messages forever by default. The first cleanup purges the backlog in batches.
+6. A unix socket is no longer bound by the daemon (`SOCKET=/path`): set it up in the socket unit instead (`ListenStream=`, see above).
 
 The database schema is unchanged.
 
@@ -146,19 +155,16 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` | `policyd-rate-guard`, empty, `policyd-rate-guard` | Credentials and database name |
 | `DB_POOL_MAXCONNECTIONS` | `10` | Database connections, also the number of requests processed in parallel |
 | `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED`, `DB_POOL_MAXUSAGE` | `0`, `10`, `10000` | [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) tuning |
-| `DB_CONNECT_TIMEOUT`, `DB_READ_TIMEOUT`, `DB_WRITE_TIMEOUT` | `5`, `10`, `10` | Seconds |
 | `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds to wait for a locked row or table before answering `FAIL_ACTION` |
 | `QUOTA` | `1000` | Default quota (recipients and messages per period) of new senders |
 | `ACTION_TEXT_BLOCKED` | `Rate limit reached, retry later` | Text of the `DEFER_IF_PERMIT` answer for senders over quota |
 | `FAIL_ACTION` | `DUNNO` | Answer on internal errors (e.g. database down): `DUNNO` (accept) or `DEFER_IF_PERMIT` |
-| `SOCKET` | `127.0.0.1,10033` | Only without socket activation: `host,port` (IPv6 as `::1,10033`) or a unix socket path |
-| `SOCKET_BACKLOG`, `MAX_CONNECTIONS`, `IDLE_TIMEOUT`, `MAX_REQUEST_SIZE` | `256`, `1024`, `330`, `65536` | Listen backlog, open connections, idle seconds (longer than Postfix's `smtpd_policy_service_max_idle`), bytes per request |
+| `SOCKET` | `127.0.0.1,10033` | Only without socket activation: `host,port` (IPv6 as `::1,10033`). A unix socket is set up in the socket unit. |
 | `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL` |
 | `LOG_FILE` | | Log file, e.g. `/var/log/policyd-rate-guard/policyd-rate-guard.log` |
 | `LOG_CONSOLE`, `SYSLOG` | `False` | Log to stderr (the journal under systemd) and/or syslog (`LOG_MAIL`). Without any of `LOG_FILE`, `LOG_CONSOLE`, `SYSLOG`, logs go to stderr. |
 | `LOG_MSG_PREFIX` | `False` | Prefix log lines with file and function name (debugging) |
 | `MESSAGE_RETENTION` | `0` | Days to keep rows in `messages`; `0` keeps them forever |
-| `PURGE_BATCH_SIZE` | `10000` | Rows deleted per statement when purging |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | , `dev` | Error reporting to [Sentry](https://sentry.io/) |
 | `WEBHOOK_ENABLED` | `False` | Call a webhook when a sender reaches the quota, see below |
 | `WEBHOOK_URL`, `WEBHOOK_SECRET`, `WEBHOOK_USE_JWT` | | Webhook URL, shared secret (base64), JWT authentication |
@@ -218,7 +224,49 @@ payload = {
 }
 ```
 
-Verify it with a JWT library, e.g. [`lcobucci/jwt`](https://github.com/lcobucci/jwt) in PHP (check signature, `iss`, `exp` and that `sub` matches the sender).
+Verify it with a JWT library: check the signature, `iss`, `exp` and that `sub` matches the sender. In a Laravel app, this is usually done in a middleware, with route model binding for the sender (`routes/api.php`):
+
+```php
+Route::post('/policyd/{mailaccount:username}', PolicydWebhookController::class)
+    ->middleware(AccessApiWebhookPolicyd::class);
+```
+
+The middleware, using [`lcobucci/jwt`](https://github.com/lcobucci/jwt) and [`lcobucci/clock`](https://github.com/lcobucci/clock):
+
+```php
+use Lcobucci\Clock\SystemClock;
+use Lcobucci\JWT\Encoding\JoseEncoder;
+use Lcobucci\JWT\Signer\Hmac\Sha256;
+use Lcobucci\JWT\Signer\Key\InMemory;
+use Lcobucci\JWT\Token\Parser;
+use Lcobucci\JWT\Validation\Constraint\IssuedBy;
+use Lcobucci\JWT\Validation\Constraint\RelatedTo;
+use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use Lcobucci\JWT\Validation\Constraint\StrictValidAt;
+use Lcobucci\JWT\Validation\Validator;
+
+class AccessApiWebhookPolicyd
+{
+    public function handle(Request $request, Closure $next): Response
+    {
+        /** @var Mailaccount $mailaccount */
+        $mailaccount = $request->route('mailaccount');
+        try {
+            $token = (new Parser(new JoseEncoder()))->parse((string) $request->bearerToken());
+            (new Validator())->assert(
+                $token,
+                new SignedWith(new Sha256(), InMemory::base64Encoded(config('app.webhooks.secret'))),
+                new IssuedBy('policyd-rate-guard'),
+                new RelatedTo($mailaccount->username),
+                new StrictValidAt(SystemClock::fromSystemTimezone()),
+            );
+        } catch (\Throwable) {
+            abort(403, 'You are not allowed to access this webhook.');
+        }
+        return $next($request);
+    }
+}
+```
 
 **Simple token (deprecated):** with `WEBHOOK_USE_JWT=False` and a `{token}` placeholder (`https://example.com/api/policyd/{sender}?token={token}`), the token is `sha256(secret + sender)`. It never changes and ends up in access logs, so anyone who sees it once can replay it. The daemon logs a warning at startup; switch to JWT.
 
@@ -227,28 +275,33 @@ Verify it with a JWT library, e.g. [`lcobucci/jwt`](https://github.com/lcobucci/
 
 ## Development 👩‍💻
 
-You need [uv](https://docs.astral.sh/uv/) and Docker.
+You need Python 3.13+ and Docker.
 
 ```bash
 $ git clone https://github.com/onlime/policyd-rate-guard.git
 $ cd policyd-rate-guard
-$ uv sync
+$ python3 -m venv .venv
+$ . .venv/bin/activate
+(.venv)$ pip install --group dev -e .
+(.venv)$ pip install pre-commit && pre-commit install    # optional: ruff on git push, as in airpane-agent
 ```
+
+The following commands run in the activated venv.
 
 ### Tests
 
 ```bash
 # unit tests (database tests are skipped)
-$ uv run pytest
+$ pytest
 
 # with a database: TEST_DATABASE_URL points to a server where a temporary database can be created
 $ docker compose up -d --wait db
-$ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:13312 uv run pytest --cov
+$ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:13312 pytest --cov
 
 # end-to-end through a real Postfix (Debian 13) with SASL users test01..test03@example.com / Example1234
 $ docker compose up -d --build --wait
 $ E2E_SMTP_PORT=1587 E2E_DATABASE_URL=mysql://root:test@127.0.0.1:13312/policyd-rate-guard \
-    E2E_WEBHOOK_URL=http://127.0.0.1:18080 uv run pytest tests/e2e
+    E2E_WEBHOOK_URL=http://127.0.0.1:18080 pytest tests/e2e
 $ docker compose down
 ```
 
@@ -257,9 +310,9 @@ The compose stack is also handy to try things by hand: submission on `localhost:
 ### Linting and type checking
 
 ```bash
-$ uv run ruff format .
-$ uv run ruff check .
-$ uv run mypy
+$ ruff format .
+$ ruff check .
+$ mypy
 ```
 
 ### Running the daemon locally
@@ -267,20 +320,13 @@ $ uv run mypy
 ```bash
 $ docker compose up -d --wait db migrate
 $ cp .env.example .env    # adjust: DB_HOST=127.0.0.1, DB_PORT=13312, DB_PASSWORD=Example1234, LOG_CONSOLE=True
-$ uv run policyd-rate-guard --env-file .env serve
-$ uv run policyd-rate-guard --env-file .env cleanup
+$ policyd-rate-guard --env-file .env serve
+$ policyd-rate-guard --env-file .env cleanup
 ```
 
 ### Dependencies
 
-`uv.lock` pins all dependencies; `requirements.txt` is exported from it, with hashes, for production installs with pip. After changing dependencies:
-
-```bash
-$ uv lock --upgrade-package <name>
-$ uv export --frozen --no-dev --no-emit-project --format requirements-txt -o requirements.txt
-```
-
-CI checks that both are in sync and runs pip-audit on them; Dependabot proposes updates weekly.
+The direct dependencies are pinned to their minor version (`==X.Y.*`) in `pyproject.toml`, so patch releases come in with the next install. Dependabot proposes updates monthly, and CI runs pip-audit on every push and weekly.
 
 ### Database migrations
 
@@ -288,19 +334,25 @@ Migrations are managed with [yoyo](https://ollycope.com/software/yoyo/latest/) i
 
 ```bash
 $ cp yoyo.ini.docker yoyo.ini
-$ uv run yoyo new --sql -m 'update table ratelimits'
-$ uv run yoyo apply
+$ yoyo new --sql -m 'update table ratelimits'
+$ yoyo apply
 ```
 
 ### Releasing
 
-Update `__version__` in `src/policyd_rate_guard/__init__.py` and `CHANGELOG.md`, then push a tag `vX.Y.Z`. The release workflow builds the packages, attests their provenance and creates the GitHub release with the changelog section.
+Update `__version__` in `src/policyd_rate_guard/__init__.py` and `CHANGELOG.md`, push a tag `vX.Y.Z` and create the GitHub release with the changelog section:
+
+```bash
+$ git tag -a v1.0.0 -m v1.0.0 && git push origin v1.0.0
+$ awk '/^## / { if (f) exit; if (index($0, "[v1.0.0]")) { f = 1; next } } f' CHANGELOG.md > /tmp/release-notes.md
+$ gh release create v1.0.0 --verify-tag --title v1.0.0 --notes-file /tmp/release-notes.md
+```
 
 ## Credits 🙏
 
-**[PolicydRateGuard](https://github.com/onlime/policyd-rate-guard)** is the official successor of [ratelimit-policyd](https://github.com/onlime/ratelimit-policyd), which ran rock-solid for 10 years, written in Perl.
+**[PolicydRateGuard](https://github.com/onlime/policyd-rate-guard)** is the official successor of [ratelimit-policyd](https://github.com/onlime/ratelimit-policyd) which was running rock-solid for over 10yrs, but suffered the fact that it was built on a shitty scripting language, formerly known as Perl. We consider the switch to Python a huge step up that will ease further development and make you feel at home.
 
-It was greatly inspired by [policyd-rate-limit](https://github.com/nitmir/policyd-rate-limit) (by [@nitmir](https://github.com/nitmir)).
+It was greatly inspired by [policyd-rate-limit](https://github.com/nitmir/policyd-rate-limit) (by [@nitmir](https://github.com/nitmir)). PolicydRateGuard has a different feature-set and a much simpler codebase, but things like the daemonizing logic of its first versions were taken from policyd-rate-limit.
 
 ## Authors
 

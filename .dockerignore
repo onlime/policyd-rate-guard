@@ -1,6 +1,9 @@
 # Only what the image needs (allowlist)
 *
-!requirements.txt
+!pyproject.toml
+!README.md
+!LICENSE
 !database/
 !src/
 **/__pycache__
+**/*.egg-info

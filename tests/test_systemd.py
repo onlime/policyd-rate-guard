@@ -63,12 +63,3 @@ def test_notify_abstract_namespace() -> None:
         assert receiver.recv(64) == b'READY=1'
     finally:
         receiver.close()
-
-
-def test_watchdog_interval() -> None:
-    pid = str(os.getpid())
-    assert systemd.watchdog_interval({'WATCHDOG_USEC': '30000000', 'WATCHDOG_PID': pid}) == 15.0
-    assert systemd.watchdog_interval({'WATCHDOG_USEC': '30000000'}) == 15.0
-    assert systemd.watchdog_interval({'WATCHDOG_USEC': '30000000', 'WATCHDOG_PID': '1'}) is None
-    assert systemd.watchdog_interval({}) is None
-    assert systemd.watchdog_interval({'WATCHDOG_USEC': 'x'}) is None

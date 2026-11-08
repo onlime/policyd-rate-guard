@@ -8,7 +8,7 @@
 #
 #   docker compose up -d --build --wait
 #   E2E_SMTP_PORT=1587 E2E_DATABASE_URL=mysql://root:test@127.0.0.1:13312/policyd-rate-guard \
-#     E2E_WEBHOOK_URL=http://127.0.0.1:18080 uv run pytest tests/e2e
+#     E2E_WEBHOOK_URL=http://127.0.0.1:18080 .venv/bin/pytest tests/e2e
 services:
   db:
     image: mysql:8.4

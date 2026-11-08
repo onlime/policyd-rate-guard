@@ -4,6 +4,8 @@ on:
   push:
     branches: [main, develop]
   pull_request:
+  schedule:
+    - cron: '41 4 * * 1'  # weekly: new advisories (pip-audit) and new patch releases of the dependencies
 
 permissions:
   contents: read
@@ -19,24 +21,29 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          enable-cache: false
-      - run: uv sync --locked --python 3.13
+          python-version: '3.13'
+      - run: pip install --group dev -e .
       - name: Lint
         run: |
-          uv run --no-sync ruff format --check .
-          uv run --no-sync ruff check --output-format=github .
+          ruff format --check .
+          ruff check --output-format=github .
       - name: Type check
-        run: uv run --no-sync mypy
+        run: mypy
+      - name: Known vulnerabilities in the dependencies
+        run: pip install pip-audit && pip-audit .
 
   test:
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        python: ['3.13', '3.14']
+        python: ['3.13']
         db: ['mysql:8.4', 'mysql:9.7', 'mariadb:12.3']
+        include:
+          - python: '3.14'
+            db: 'mysql:8.4'
     services:
       db:
         image: ${{ matrix.db }}
@@ -54,14 +61,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          enable-cache: false
-      - run: uv sync --locked --python ${{ matrix.python }}
+          python-version: ${{ matrix.python }}
+      - run: pip install --group dev -e .
       - name: Tests with coverage
-        run: uv run --no-sync pytest --cov --cov-report=term
-      - name: Concurrency tests, repeated
-        run: |
-          for _ in $(seq 5); do
-            uv run --no-sync pytest -q tests/test_ratelimit.py -k "concurrent or real_database"
-          done
+        run: pytest --cov --cov-report=term

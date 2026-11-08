@@ -11,16 +11,17 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - A blocked sender's mail was accepted (`DUNNO`) whenever anything failed after the decision, e.g. storing a `From` address longer than 255 characters under strict SQL mode. Values are clamped to the column sizes and the decision is always sent.
 - `recipient_count` is validated: a negative value (anyone who can connect to the policy port can send one) reset a sender's counter under non-strict SQL mode.
 - Sentry no longer receives local variables of stack frames, which included the webhook secret and the database password; events are scrubbed of email addresses, secrets and tokens.
-- Database connect/read/write and lock wait timeouts: a slow or locked database can no longer make requests pile up until the server's connections run out.
+- Database connect, read, write and lock wait timeouts: a slow or locked database can no longer make requests pile up until the server's connections run out.
 - The configuration is read from an explicit file only (`load_dotenv()` searched parent directories) and lives in `/etc/policyd-rate-guard/` instead of the code directory.
 - The systemd units run as a dedicated user `policyd-rate-guard` (instead of `postfix`, the mail owner) with full sandboxing (`systemd-analyze security`: 1.1 instead of 9.0).
-- Dependencies are pinned with hashes and installed as binary wheels only.
+- Dependencies are installed as binary wheels only, so no third-party code runs at install time.
 
 **Changed (breaking):**
 
 - Requires Python 3.13+ (Debian 13). Only PyMySQL is supported (`DB_DRIVER=sqlite3` is gone, the SQL is MySQL-specific); tested with MySQL 8.4 and 9.7 and MariaDB 12.3.
 - Package layout `src/policyd_rate_guard/`; run with `python -m policyd_rate_guard [serve|cleanup|check]`. `run.py`, `cleanup.py`, `setup.py` and `app/` are removed.
-- New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify` with watchdog.
+- New systemd socket unit `policyd-rate-guard.socket`; the service needs it (`--require-socket-activation`), `Type=notify`.
+- `SOCKET` only takes `host,port` (used without socket activation). A unix socket is set up in the socket unit (`ListenStream=/path`), see the README.
 - Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.
 - `LOG_MSG_PREFIX` defaults to `False`.
 - Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer. The simple token (`WEBHOOK_USE_JWT=False`) is deprecated, use JWT.
@@ -28,9 +29,9 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 
 **Improved:**
 
-- asyncio server with persistent connections, as Postfix's policy protocol expects (0.x closed the connection after each request), connection limit, idle timeout and graceful shutdown on `SIGTERM`; database work runs in a bounded thread pool, requests without `sasl_username` (inbound mail) are answered without the database.
+- asyncio server with persistent connections, as Postfix's policy protocol expects (0.x closed the connection after each request), idle timeout and graceful shutdown on `SIGTERM`; database work runs in a bounded thread pool, requests without `sasl_username` (inbound mail) are answered without the database.
 - systemd socket activation: the listening socket survives restarts, Postfix's connections wait instead of falling back to `DUNNO`.
-- The webhook is called after the reply to Postfix, in its own thread pool, with timeouts.
+- The webhook is called after the reply to Postfix, in its own thread, with timeouts.
 - Correct queue IDs in the log under concurrency (0.x shared them across threads). The log line format is unchanged.
 - The log file is reopened after rotation, logrotate no longer restarts the daemon.
 - The webhook payload's `timestamp` is the time of the message (0.x always sent the daemon's start time).
@@ -39,12 +40,12 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 
 **Added:**
 
-- `DB_UNIX_SOCKET`, `DB_POOL_MAXCONNECTIONS`, `DB_CONNECT_TIMEOUT`, `DB_READ_TIMEOUT`, `DB_WRITE_TIMEOUT`, `DB_LOCK_WAIT_TIMEOUT`, `FAIL_ACTION`, `MAX_CONNECTIONS`, `IDLE_TIMEOUT`, `MAX_REQUEST_SIZE`, `SOCKET_BACKLOG`, `PURGE_BATCH_SIZE`, `WEBHOOK_ALLOW_HTTP`.
+- `DB_UNIX_SOCKET`, `DB_POOL_MAXCONNECTIONS`, `DB_LOCK_WAIT_TIMEOUT`, `FAIL_ACTION`, `WEBHOOK_ALLOW_HTTP`.
 - `check` command to validate the configuration and the database connection (used by the Ansible role before restarting).
 
 **Development:**
 
-- pyproject.toml, uv with `uv.lock`, ruff and strict mypy, pytest (unit, property-based, concurrency, database and end-to-end tests through a real Postfix), GitHub Actions for Python 3.13/3.14 × MySQL 8.4/9.7 × MariaDB 12.3, a Debian 13 deployment parity job, pip-audit, zizmor and Dependabot.
+- pyproject.toml with the dependencies pinned to minor versions, installed with plain pip (also in production, `pip install .`). ruff (also as pre-commit hook) and mypy, pytest (unit, concurrency, database and end-to-end tests through a real Postfix), GitHub Actions for MySQL 8.4, MySQL 9.7 and MariaDB 12.3 on Python 3.13 (and 3.14), pip-audit and Dependabot.
 
 ## [v0.7.4](https://github.com/onlime/policyd-rate-guard/releases/tag/v0.7.4) (2026-02-24)
 

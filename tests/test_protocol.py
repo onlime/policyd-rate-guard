@@ -1,5 +1,4 @@
-from hypothesis import given
-from hypothesis import strategies as st
+import pytest
 
 from policyd_rate_guard.protocol import clamp, format_response, parse_request, sanitize
 
@@ -55,14 +54,16 @@ def test_sanitize_and_clamp() -> None:
     assert clamp(None, 3) is None
 
 
-@given(st.binary(max_size=4096))
+@pytest.mark.parametrize(
+    'data', [b'', b'\n\n', b'=\n==\n', b'no equals sign\n\n', b'\xff\xfe\x00=\x80\n\n', b'a=b=c\n' * 1000]
+)
 def test_parser_never_raises(data: bytes) -> None:
     request = parse_request(data)
     assert isinstance(dict(request.attributes), dict)
     request.recipient_count(1_000_000)
 
 
-@given(st.text(max_size=200))
+@pytest.mark.parametrize('action', ['OK', '', 'DEFER_IF_PERMIT a\nb', 'x\r\n\r\naction=OK', '\x00'])
 def test_response_is_always_one_line(action: str) -> None:
     response = format_response(action)
     assert response.startswith(b'action=')

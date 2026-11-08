@@ -14,14 +14,15 @@ from dbutils.pooled_db import PooledDB
 
 from .config import DbSettings
 
-# MySQL/MariaDB error numbers
-ER_LOCK_WAIT_TIMEOUT = 1205
-ER_LOCK_DEADLOCK = 1213
+ER_LOCK_DEADLOCK = 1213  # MySQL/MariaDB error number
+
+# Seconds
+CONNECT_TIMEOUT = 5
+READ_TIMEOUT = 10
+WRITE_TIMEOUT = 10
 
 
 class Cursor(Protocol):
-    rowcount: int
-
     def execute(self, query: str, args: object = None) -> int: ...
     def fetchone(self) -> dict[str, Any] | None: ...
     def close(self) -> None: ...
@@ -50,9 +51,9 @@ def connect_kwargs(settings: DbSettings) -> dict[str, Any]:
         'password': settings.password,
         'database': settings.database,
         'charset': 'utf8mb4',
-        'connect_timeout': settings.connect_timeout,
-        'read_timeout': settings.read_timeout,
-        'write_timeout': settings.write_timeout,
+        'connect_timeout': CONNECT_TIMEOUT,
+        'read_timeout': READ_TIMEOUT,
+        'write_timeout': WRITE_TIMEOUT,
         'autocommit': False,
         'cursorclass': pymysql.cursors.DictCursor,
     }

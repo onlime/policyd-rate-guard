@@ -2,49 +2,36 @@
 
 Connection I/O runs in the event loop, so idle persistent connections (Postfix keeps one per smtpd process for up
 to ``smtpd_policy_service_max_idle``) cost nothing. DB work runs in a bounded thread pool sized to the DB
-connection pool, webhooks in a separate small pool after the reply has been sent.
+connection pool, a webhook in its own thread after the reply has been sent.
 """
 
 import asyncio
 import contextlib
 import logging
-import os
 import signal
 import socket
-import stat
-from collections.abc import Callable
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
-from .config import Settings, TcpAddress, UnixAddress
+from .config import Settings
 from .log import queue_id_context
 from .protocol import format_response, parse_request
 from .service import INVALID_ACTION, Outcome, PolicyService
-from .systemd import notify, watchdog_interval
+from .systemd import notify
 from .webhook import Webhook, WebhookPayload
 
+BACKLOG = 256
+IDLE_TIMEOUT = 330.0  # seconds, longer than Postfix's smtpd_policy_service_max_idle (300s)
+MAX_REQUEST_SIZE = 65536  # bytes, far more than Postfix ever sends
 SHUTDOWN_GRACE = 10.0
 
 
 def bind_listen_socket(settings: Settings) -> socket.socket:
-    """Bind ``SOCKET`` ourselves (when not socket-activated)."""
-    address = settings.listen
-    if isinstance(address, TcpAddress):
-        family = socket.AF_INET6 if ':' in address.host else socket.AF_INET
-        return socket.create_server((address.host, address.port), family=family, backlog=settings.socket_backlog)
-    path = address.path
-    with contextlib.suppress(FileNotFoundError):
-        if not stat.S_ISSOCK(path.lstat().st_mode):
-            raise FileExistsError(f'{path} exists and is not a socket')
-        path.unlink()  # stale socket of a previous run
-    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    old_umask = os.umask(0o117)  # 0660: owner and group (e.g. postfix) only
-    try:
-        sock.bind(str(path))
-    finally:
-        os.umask(old_umask)
-    sock.listen(settings.socket_backlog)
-    return sock
+    """Bind ``SOCKET`` (host,port) ourselves, when not socket-activated."""
+    host, port = settings.listen.host, settings.listen.port
+    family = socket.AF_INET6 if ':' in host else socket.AF_INET
+    return socket.create_server((host, port), family=family, backlog=BACKLOG)
 
 
 class PolicyServer:
@@ -56,32 +43,15 @@ class PolicyServer:
         self.webhook = webhook
         self.logger = logger
         self.db_executor = ThreadPoolExecutor(settings.db.pool_maxconnections, thread_name_prefix='policy-db')
-        self.webhook_executor = ThreadPoolExecutor(2, thread_name_prefix='policy-webhook')
         self._connections: dict[asyncio.Task[None], bool] = {}  # task -> busy
-        self._background: set[asyncio.Future[Any]] = set()
         self._servers: list[asyncio.Server] = []
-        self._rejected_connections = 0
 
     async def start(self, sockets: list[socket.socket]) -> None:
         loop = asyncio.get_running_loop()
         loop.set_exception_handler(self._loop_exception)
         for sock in sockets:
-            if sock.family == socket.AF_UNIX:
-                # cleanup_socket=False: a systemd-provided socket may live in a directory we can't even stat
-                server = await asyncio.start_unix_server(
-                    self._on_connection,
-                    sock=sock,
-                    limit=self.settings.max_request_size,
-                    backlog=self.settings.socket_backlog,
-                    cleanup_socket=False,
-                )
-            else:
-                server = await asyncio.start_server(
-                    self._on_connection,
-                    sock=sock,
-                    limit=self.settings.max_request_size,
-                    backlog=self.settings.socket_backlog,
-                )
+            # Also for a unix socket from systemd (ListenStream=/path); systemd removes the file, not us
+            server = await asyncio.start_server(self._on_connection, sock=sock, limit=MAX_REQUEST_SIZE, backlog=BACKLOG)
             self._servers.append(server)
             self.logger.info('Listening on %s', _describe(sock))
 
@@ -94,13 +64,10 @@ class PolicyServer:
                 loop.add_signal_handler(sig, stop.set)
         await self.start(sockets)
         notify('READY=1\nSTATUS=Serving policy requests')
-        watchdog = asyncio.create_task(self._watchdog()) if watchdog_interval() else None
         try:
             await stop.wait()
         finally:
             notify('STOPPING=1')
-            if watchdog:
-                watchdog.cancel()
             await self.shutdown()
 
     async def shutdown(self) -> None:
@@ -119,17 +86,8 @@ class PolicyServer:
         for server in self._servers:
             with contextlib.suppress(Exception):
                 await server.wait_closed()
-        if self._background:
-            await asyncio.wait(list(self._background), timeout=SHUTDOWN_GRACE)
         self.db_executor.shutdown(wait=False, cancel_futures=True)
-        self.webhook_executor.shutdown(wait=False, cancel_futures=True)
         self.logger.info('Stopped')
-
-    async def _watchdog(self) -> None:
-        interval = watchdog_interval() or 10.0
-        while True:
-            notify('WATCHDOG=1')
-            await asyncio.sleep(interval)
 
     def _loop_exception(self, loop: asyncio.AbstractEventLoop, context: dict[str, Any]) -> None:
         # e.g. accept() failing with EMFILE: asyncio pauses accepting and carries on
@@ -139,16 +97,6 @@ class PolicyServer:
     async def _on_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         task = asyncio.current_task()
         if task is None:  # pragma: no cover
-            return
-        if len(self._connections) >= self.settings.max_connections:
-            self._rejected_connections += 1
-            if self._rejected_connections % 100 == 1:
-                self.logger.warning(
-                    'Too many connections (%d), rejected %d so far',
-                    len(self._connections),
-                    self._rejected_connections,
-                )
-            await _close(writer)
             return
         self._connections[task] = False
         try:
@@ -170,7 +118,7 @@ class PolicyServer:
         # connection unless there was an error"), so loop until the client closes or goes idle.
         while True:
             try:
-                async with asyncio.timeout(self.settings.idle_timeout):
+                async with asyncio.timeout(IDLE_TIMEOUT):
                     data = await reader.readuntil(b'\n\n')
             except asyncio.IncompleteReadError as e:
                 if e.partial.strip():
@@ -178,7 +126,7 @@ class PolicyServer:
                 return
             except asyncio.LimitOverrunError:
                 # Far larger than anything Postfix sends: never let it pass as DUNNO
-                self.logger.warning('Request exceeds %d bytes, answering and closing', self.settings.max_request_size)
+                self.logger.warning('Request exceeds %d bytes, answering and closing', MAX_REQUEST_SIZE)
                 writer.write(format_response(INVALID_ACTION))
                 await writer.drain()
                 return
@@ -207,12 +155,9 @@ class PolicyServer:
         return outcome
 
     def _notify(self, payload: WebhookPayload) -> None:
-        if self.webhook is None:
-            return
-        call: Callable[[WebhookPayload], bool] = self.webhook.call
-        future = asyncio.get_running_loop().run_in_executor(self.webhook_executor, call, payload)
-        self._background.add(future)
-        future.add_done_callback(self._background.discard)
+        # At most once per sender and period; a non-daemon thread, so a shutdown waits for it (timeouts apply)
+        if self.webhook is not None:
+            threading.Thread(target=self.webhook.call, args=(payload,), name='policy-webhook').start()
 
 
 async def _close(writer: asyncio.StreamWriter) -> None:
@@ -227,6 +172,3 @@ def _describe(sock: socket.socket) -> str:
         return f'unix:{name}'
     host, port = name[0], name[1]
     return f'inet:[{host}]:{port}' if ':' in host else f'inet:{host}:{port}'
-
-
-__all__ = ['PolicyServer', 'TcpAddress', 'UnixAddress', 'bind_listen_socket']

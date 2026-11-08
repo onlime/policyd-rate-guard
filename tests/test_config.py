@@ -6,7 +6,6 @@ from policyd_rate_guard.config import (
     DEFAULT_ENV_FILE,
     ConfigError,
     TcpAddress,
-    UnixAddress,
     load_settings,
     parse_listen_address,
     settings_from_mapping,
@@ -22,7 +21,6 @@ def test_defaults() -> None:
     assert settings.listen == TcpAddress('127.0.0.1', 10033)
     assert settings.db.user == 'policyd-rate-guard'
     assert settings.db.unix_socket is None
-    assert settings.db.read_timeout == 10
     assert settings.log_msg_prefix is False
     assert settings.webhook.enabled is False
     assert settings.message_retention == 0
@@ -79,14 +77,15 @@ def test_secrets_are_not_in_repr() -> None:
         ('::1,10033', TcpAddress('::1', 10033)),
         ('[::1],10033', TcpAddress('::1', 10033)),
         ('localhost, 10033', TcpAddress('localhost', 10033)),
-        ('/var/spool/postfix/private/policyd', UnixAddress(Path('/var/spool/postfix/private/policyd'))),
     ],
 )
 def test_parse_listen_address(value: str, expected: object) -> None:
     assert parse_listen_address(value) == expected
 
 
-@pytest.mark.parametrize('value', ['relative/path', ',10033', '127.0.0.1,http', '127.0.0.1,0', '127.0.0.1,70000'])
+@pytest.mark.parametrize(
+    'value', ['/var/spool/postfix/private/policyd', ',10033', '127.0.0.1,http', '127.0.0.1,0', '127.0.0.1,70000']
+)
 def test_parse_listen_address_invalid(value: str) -> None:
     with pytest.raises(ConfigError, match='SOCKET'):
         parse_listen_address(value)

@@ -57,15 +57,13 @@ def test_serve_requires_socket_activation_when_asked(tmp_path: Path) -> None:
 def test_check_never_touches_the_log_file(tmp_path: Path) -> None:
     """`check` runs as root before the service starts: it must not create the service's log file (as root)."""
     log_file = tmp_path / 'missing-dir' / 'policyd.log'
-    path = env_file(
-        tmp_path, LOG_FILE=log_file, SYSLOG='True', DB_HOST='127.0.0.1', DB_PORT='1', DB_CONNECT_TIMEOUT='1'
-    )
+    path = env_file(tmp_path, LOG_FILE=log_file, SYSLOG='True', DB_HOST='127.0.0.1', DB_PORT='1')
     assert main(['--env-file', str(path), 'check']) == 1  # fails on the database, not on the log file
     assert not log_file.parent.exists()
 
 
 def test_check_and_cleanup_fail_without_database(tmp_path: Path) -> None:
-    path = env_file(tmp_path, DB_HOST='127.0.0.1', DB_PORT='1', DB_CONNECT_TIMEOUT='1', LOG_CONSOLE='True')
+    path = env_file(tmp_path, DB_HOST='127.0.0.1', DB_PORT='1', LOG_CONSOLE='True')
     assert main(['--env-file', str(path), 'check']) == 1
     assert main(['--env-file', str(path), 'cleanup']) == 1
 

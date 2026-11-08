@@ -1,4 +1,4 @@
-"""Minimal systemd integration without dependencies: socket activation and sd_notify."""
+"""Minimal systemd integration without dependencies: socket activation and sd_notify (READY/STOPPING)."""
 
 import os
 import socket
@@ -44,16 +44,3 @@ def notify(state: str, environ: MutableMapping[str, str] | None = None) -> bool:
     except OSError:
         return False
     return True
-
-
-def watchdog_interval(environ: MutableMapping[str, str] | None = None) -> float | None:
-    """Half of the configured watchdog timeout in seconds, or None if the watchdog is off."""
-    env = os.environ if environ is None else environ
-    try:
-        usec = int(env.get('WATCHDOG_USEC', '0'))
-        pid = int(env.get('WATCHDOG_PID', str(os.getpid())))
-    except ValueError:
-        return None
-    if usec <= 0 or pid != os.getpid():
-        return None
-    return usec / 2_000_000

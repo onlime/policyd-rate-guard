@@ -1,10 +1,10 @@
 version: 2
 updates:
-  # uv.lock; the hash-pinned requirements.txt must be re-exported (the Security workflow fails until it is)
-  - package-ecosystem: uv
+  # The ==X.Y.* pins in pyproject.toml
+  - package-ecosystem: pip
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       python:
         patterns: ['*']
@@ -14,14 +14,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
     groups:
       actions:
         patterns: ['*']
     cooldown:
       default-days: 7
-
-  - package-ecosystem: docker
-    directories: [/, /docker/postfix]
-    schedule:
-      interval: weekly

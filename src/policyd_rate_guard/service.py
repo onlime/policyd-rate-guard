@@ -16,6 +16,7 @@ OK = 'OK'
 # Answer for requests that are applicable but carry invalid data. Postfix never sends such values, so they come
 # from something else talking to the socket: never let them pass as DUNNO.
 INVALID_ACTION = 'DEFER_IF_PERMIT Invalid policy request'
+MAX_RECIPIENT_COUNT = 1_000_000
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,10 +36,6 @@ class PolicyService:
         self.logger = logger
         self.blocked_action = f'DEFER_IF_PERMIT {settings.action_text_blocked}'
         self._warned_states: set[str] = set()
-
-    def handle(self, request: PolicyRequest) -> Outcome:
-        """Full decision (pre-check and DB), for callers that may block."""
-        return self.precheck(request) or self.decide(request)
 
     def precheck(self, request: PolicyRequest) -> Outcome | None:
         """Decide without the DB where possible (cheap, runs in the event loop). None means: needs ``decide()``."""
@@ -80,7 +77,7 @@ class PolicyService:
                 )
             return Outcome(DUNNO)
 
-        rcpt_count = request.recipient_count(self.settings.max_recipient_count)
+        rcpt_count = request.recipient_count(MAX_RECIPIENT_COUNT)
         if rcpt_count is None or len(sender) > SENDER_MAX:
             self.logger.warning(
                 'Invalid request: sasl_username=%s recipient_count=%s',
@@ -92,7 +89,7 @@ class PolicyService:
 
     def _decide(self, request: PolicyRequest) -> Outcome:
         sender = request.sasl_username
-        rcpt_count = request.recipient_count(self.settings.max_recipient_count)
+        rcpt_count = request.recipient_count(MAX_RECIPIENT_COUNT)
         if sender is None or rcpt_count is None:  # pragma: no cover (rejected by _precheck)
             raise ValueError('decide() called for a request that failed the pre-check')
 

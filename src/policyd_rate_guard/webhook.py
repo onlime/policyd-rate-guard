@@ -1,7 +1,7 @@
 """Webhook notification when a sender reaches the quota (once per period).
 
-It runs after the reply has been sent to Postfix, in a separate executor, with timeouts: a slow or failing
-webhook can neither delay the policy decision nor turn a block into DUNNO.
+It runs after the reply has been sent to Postfix, in its own thread, with timeouts: a slow or failing webhook can
+neither delay the policy decision nor turn a block into DUNNO.
 """
 
 import hashlib
@@ -9,17 +9,21 @@ import logging
 from base64 import b64decode
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import jwt
 import requests
 
 from . import __version__
-from .config import WebhookSettings
 from .protocol import sanitize
+
+if TYPE_CHECKING:
+    from .config import WebhookSettings
 
 JWT_ISSUER = 'policyd-rate-guard'
 JWT_LIFETIME = timedelta(seconds=60)
+TIMEOUT = (3.0, 10.0)  # connect, read (seconds)
 MAX_LOGGED_BODY = 200
 
 
@@ -39,7 +43,7 @@ class WebhookPayload:
 
 
 class Webhook:
-    def __init__(self, settings: WebhookSettings, logger: logging.Logger) -> None:
+    def __init__(self, settings: 'WebhookSettings', logger: logging.Logger) -> None:
         self.settings = settings
         self.logger = logger
         self.session = requests.Session()
@@ -77,10 +81,10 @@ class Webhook:
                 url,
                 headers=headers,
                 json=asdict(payload),
-                timeout=(self.settings.connect_timeout, self.settings.read_timeout),
+                timeout=TIMEOUT,
                 allow_redirects=False,
             )
-        except Exception as e:  # noqa: BLE001 (a webhook failure must never affect mail flow)
+        except Exception as e:  # a webhook failure must never affect mail flow
             # Only the exception type and the URL template: the message may contain the token
             self.logger.warning('Webhook call failed: POST %s (%s)', self.settings.url, type(e).__name__)
             return False

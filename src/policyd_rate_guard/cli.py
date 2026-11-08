@@ -77,7 +77,7 @@ def cleanup(settings: Settings, logger: logging.Logger) -> int:
         changed = reset_counters(db)
         logger.info('Reset counters of %d senders', changed)
         if settings.message_retention > 0:
-            deleted = purge_messages(db, settings.message_retention, settings.purge_batch_size)
+            deleted = purge_messages(db, settings.message_retention)
             logger.info('Deleted %d old messages (retention: %d days)', deleted, settings.message_retention)
     except Exception:
         logger.exception('Cleanup failed')
@@ -96,7 +96,7 @@ def check(settings: Settings, logger: logging.Logger) -> int:
                 cursor.execute(f'SELECT 1 FROM `{table}` LIMIT 1')
                 cursor.fetchone()
             cursor.close()
-    except Exception as e:  # noqa: BLE001 (report any failure as a failed check)
+    except Exception as e:  # report any failure as a failed check
         logger.error('Database check failed: %s', e)
         return EXIT_FAILURE
     finally:

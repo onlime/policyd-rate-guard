@@ -79,7 +79,8 @@ def counters(raw_db: Any, sender: str) -> dict[str, Any]:
 
 
 def decide(svc: PolicyService, sasl_username: str, rcpt: int = 1, **kwargs: Any) -> Any:
-    return svc.handle(parse_request(postfix_request(sasl_username, recipient_count=rcpt, **kwargs)))
+    request = parse_request(postfix_request(sasl_username, recipient_count=rcpt, **kwargs))
+    return svc.precheck(request) or svc.decide(request)
 
 
 @pytest.mark.db

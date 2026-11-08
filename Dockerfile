@@ -1,5 +1,5 @@
-# Development and end-to-end test image. It installs exactly like the Ansible role does on Debian 13:
-# Debian's Python, a venv with hash-pinned binary wheels, the app loaded from the checkout via a .pth file.
+# Development and end-to-end test image. It installs like the Ansible role does on Debian 13:
+# Debian's Python, a venv, and the app with its dependencies as binary wheels.
 FROM debian:trixie-slim
 
 RUN apt-get update \
@@ -8,15 +8,11 @@ RUN apt-get update \
     && useradd --system --no-create-home --shell /usr/sbin/nologin policyd-rate-guard
 
 WORKDIR /opt/policyd-rate-guard
-COPY requirements.txt ./
-RUN python3 -m venv venv \
-    && venv/bin/pip install --no-cache-dir --disable-pip-version-check \
-        --require-hashes --only-binary=:all: --no-deps -r requirements.txt
-COPY database ./database
+COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
-RUN echo /opt/policyd-rate-guard/src \
-    > "$(venv/bin/python -c 'import sysconfig; print(sysconfig.get_path("purelib"))')/policyd-rate-guard.pth" \
-    && venv/bin/python -m compileall -q src
+COPY database ./database
+RUN python3 -m venv venv \
+    && venv/bin/pip install --no-cache-dir --disable-pip-version-check --only-binary=:all: .
 
 USER policyd-rate-guard
 EXPOSE 10033

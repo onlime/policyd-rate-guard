@@ -13,7 +13,6 @@ Environment=POLICYD_ENV_FILE=/etc/policyd-rate-guard/policyd-rate-guard.env
 ExecStart=/opt/policyd-rate-guard/venv/bin/python -m policyd_rate_guard serve --require-socket-activation
 Restart=on-failure
 RestartSec=2s
-WatchdogSec=30s
 TimeoutStopSec=20s
 LimitNOFILE=8192
 LogsDirectory=policyd-rate-guard

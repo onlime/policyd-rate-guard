@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import socket
-import stat
 import tempfile
 import threading
 from collections.abc import AsyncIterator, Callable, Iterator
@@ -11,7 +10,8 @@ from typing import Any
 
 import pytest
 
-from policyd_rate_guard.config import Settings, TcpAddress, UnixAddress
+from policyd_rate_guard import server as server_module
+from policyd_rate_guard.config import Settings, TcpAddress
 from policyd_rate_guard.protocol import PolicyRequest
 from policyd_rate_guard.server import PolicyServer, bind_listen_socket
 from policyd_rate_guard.service import INVALID_ACTION, Outcome
@@ -68,7 +68,7 @@ def server_factory(make_settings: Callable[..., Settings], logger: logging.Logge
     async def start(service: FakeService | None = None, webhook: Any = None, **overrides: Any) -> Running:
         settings = make_settings(listen=TcpAddress('127.0.0.1', 0), **overrides)
         service = service or FakeService()
-        server = PolicyServer(settings, service, webhook, logger)  # type: ignore[arg-type]
+        server = PolicyServer(settings, service, webhook, logger)
         sock = bind_listen_socket(settings)
         await server.start([sock])
         servers.append(server)
@@ -77,7 +77,6 @@ def server_factory(make_settings: Callable[..., Settings], logger: logging.Logge
     yield start
     for server in servers:
         server.db_executor.shutdown(wait=False)
-        server.webhook_executor.shutdown(wait=False)
 
 
 @pytest.fixture
@@ -125,8 +124,11 @@ async def test_long_request_is_counted_not_truncated(running: Running) -> None:
     writer.close()
 
 
-async def test_oversized_request_is_deferred_and_closed(server_factory: Callable[..., Any]) -> None:
-    run = await server_factory(max_request_size=4096)
+async def test_oversized_request_is_deferred_and_closed(
+    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(server_module, 'MAX_REQUEST_SIZE', 4096)
+    run = await server_factory()
     reader, writer = await run.connect()
     writer.write(b'request=smtpd_access_policy\nsender=' + b'x' * 10000 + b'\n\n')
     await writer.drain()
@@ -135,8 +137,9 @@ async def test_oversized_request_is_deferred_and_closed(server_factory: Callable
     await run.server.shutdown()
 
 
-async def test_idle_connection_is_closed(server_factory: Callable[..., Any]) -> None:
-    run = await server_factory(idle_timeout=0.2)
+async def test_idle_connection_is_closed(server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(server_module, 'IDLE_TIMEOUT', 0.2)
+    run = await server_factory()
     reader, writer = await run.connect()
     assert await asyncio.wait_for(reader.read(), 5) == b''
     writer.close()
@@ -155,20 +158,6 @@ async def test_incomplete_request_is_logged(running: Running, caplog: pytest.Log
         await asyncio.sleep(0.02)
     assert 'Connection closed in the middle of a request' in caplog.text
     assert running.service.decided == []
-
-
-async def test_connection_limit(server_factory: Callable[..., Any], caplog: pytest.LogCaptureFixture) -> None:
-    run = await server_factory(max_connections=2)
-    first = await run.connect()
-    second = await run.connect()
-    assert await ask(first[0], first[1], postfix_request('u@example.com')) == b'action=OK\n\n'
-    assert await ask(second[0], second[1], postfix_request('u@example.com')) == b'action=OK\n\n'
-    reader, writer = await run.connect()
-    assert await asyncio.wait_for(reader.read(), 5) == b''
-    assert 'Too many connections (2), rejected 1 so far' in caplog.text
-    for _, w in (first, second, (reader, writer)):
-        w.close()
-    await run.server.shutdown()
 
 
 async def test_webhook_runs_after_the_reply(server_factory: Callable[..., Any]) -> None:
@@ -217,9 +206,8 @@ async def test_run_notifies_systemd(
     receiver.bind(str(path))
     receiver.setblocking(False)
     monkeypatch.setenv('NOTIFY_SOCKET', str(path))
-    monkeypatch.setenv('WATCHDOG_USEC', '200000')
     settings = make_settings(listen=TcpAddress('127.0.0.1', 0))
-    server = PolicyServer(settings, FakeService(), None, logger)  # type: ignore[arg-type]
+    server = PolicyServer(settings, FakeService(), None, logger)
     stop = asyncio.Event()
     task = asyncio.create_task(server.run([bind_listen_socket(settings)], stop))
     await asyncio.sleep(0.25)
@@ -234,45 +222,24 @@ async def test_run_notifies_systemd(
     receiver.close()
     path.unlink()
     directory.rmdir()
-    assert messages[0].startswith(b'READY=1')
-    assert b'WATCHDOG=1' in messages
-    assert messages[-1] == b'STOPPING=1'
+    assert messages == [b'READY=1\nSTATUS=Serving policy requests', b'STOPPING=1']
 
 
-def test_bind_unix_socket(make_settings: Callable[..., Settings]) -> None:
-    directory = Path(tempfile.mkdtemp(prefix='prg-', dir='/tmp'))
+async def test_unix_socket_from_systemd(make_settings: Callable[..., Settings], logger: logging.Logger) -> None:
+    """A unix socket set up by a socket unit (ListenStream=/path) is served like a TCP one, and left in place."""
+    directory = Path(tempfile.mkdtemp(prefix='prg-', dir='/tmp'))  # short path for AF_UNIX
     path = directory / 'policyd.sock'
-    settings = make_settings(listen=UnixAddress(path))
-    first = bind_listen_socket(settings)
-    assert stat.S_IMODE(path.stat().st_mode) == 0o660
-    first.close()  # leaves a stale socket file behind
-    second = bind_listen_socket(settings)  # replaces the stale socket
-    assert stat.S_ISSOCK(path.stat().st_mode)
-    second.close()
-    path.unlink()
-    path.write_text('not a socket')
-    with pytest.raises(FileExistsError):
-        bind_listen_socket(settings)
-    path.unlink()
-    directory.rmdir()
-
-
-async def test_unix_socket_server(make_settings: Callable[..., Settings], logger: logging.Logger) -> None:
-    directory = Path(tempfile.mkdtemp(prefix='prg-', dir='/tmp'))
-    path = directory / 'policyd.sock'
-    settings = make_settings(listen=UnixAddress(path))
-    server = PolicyServer(settings, FakeService(), None, logger)  # type: ignore[arg-type]
-    await server.start([bind_listen_socket(settings)])
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.bind(str(path))
+    sock.listen()
+    server = PolicyServer(make_settings(), FakeService(), None, logger)
+    await server.start([sock])
     reader, writer = await asyncio.open_unix_connection(str(path))
     assert await ask(reader, writer, postfix_request('u@example.com')) == b'action=OK\n\n'
     writer.close()
     await server.shutdown()
-    cleanup_dir(directory)
-
-
-def cleanup_dir(directory: Path) -> None:
-    for entry in directory.iterdir():
-        entry.unlink()
+    assert path.is_socket()
+    path.unlink()
     directory.rmdir()
 
 
