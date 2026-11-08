@@ -2,8 +2,8 @@
 
 sentry-sdk sends local variables of every stack frame by default, and its scrubber only matches exact key
 names: the webhook secret and the DB password (inside DBUtils' connection kwargs) were sent in 0.x. Local
-variables are disabled here, and every string in an event or breadcrumb is scrubbed of email addresses,
-configured secrets and token query parameters.
+variables are disabled here, HTTP breadcrumbs (with the webhook URL) are dropped, and every string in an event or
+breadcrumb is scrubbed of email addresses, configured secrets and token query parameters.
 """
 
 import logging
@@ -52,6 +52,10 @@ class Scrubber:
         return {key: value if key in METADATA_KEYS else self.scrub(value) for key, value in event.items()}
 
     def before_breadcrumb(self, crumb: Any, hint: Any) -> Any:
+        # sentry-sdk's HTTP integration records every request with its URL: the webhook's contains the mailbox,
+        # and a legacy username without @ isn't scrubbed as an address
+        if isinstance(crumb, dict) and crumb.get('category') == 'httplib':
+            return None
         return self.scrub(crumb)
 
 

@@ -131,6 +131,38 @@ def test_no_trace_headers_on_outgoing_requests(
     assert not {name.lower() for name in headers[0]} & {'sentry-trace', 'baggage'}
 
 
+def test_no_http_breadcrumbs(transport: CaptureTransport, make_settings: Callable[..., Settings]) -> None:
+    """sentry-sdk records every HTTP request as a breadcrumb with its URL, which contains the mailbox (legacy
+    usernames without @ aren't scrubbed as addresses): a later error event must not carry it."""
+    import http.server
+    import threading
+
+    import requests
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, *args: Any) -> None:
+            pass
+
+    httpd = http.server.HTTPServer(('127.0.0.1', 0), Handler)
+    thread = threading.Thread(target=httpd.handle_request)
+    thread.start()
+    assert init_sentry(make_settings(sentry_dsn='https://public@example.invalid/1'))
+    requests.post(f'http://127.0.0.1:{httpd.server_port}/api/policyd/legacy_user_example_ch?m=ABC123', timeout=5)
+    thread.join(5)
+    httpd.server_close()
+    logging.getLogger('policyd-rate-guard').error('Webhook call failed')
+    sentry_sdk.flush()
+
+    payload = b''.join(item.get_bytes() for envelope in transport.envelopes for item in envelope.items)
+    assert b'Webhook call failed' in payload, 'no event captured'
+    for needle in (b'legacy_user_example_ch', b'ABC123', b'httplib'):
+        assert needle not in payload
+
+
 def test_init_doesnt_wait_for_dns(
     transport: CaptureTransport, make_settings: Callable[..., Settings], monkeypatch: pytest.MonkeyPatch
 ) -> None:
