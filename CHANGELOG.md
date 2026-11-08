@@ -26,7 +26,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - Configuration file `/etc/policyd-rate-guard/policyd-rate-guard.env` (or `--env-file`/`POLICYD_ENV_FILE`). The variable names are unchanged, but invalid values now stop the daemon at startup with a list of all errors.
 - `LOG_MSG_PREFIX` is removed. The log line format is unchanged (as with `LOG_MSG_PREFIX=False`, which the Ansible role sets since 0.5.1); the queue ID prefix stays.
 - Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer.
-- Webhook: the simple token (`sha256(secret + sender)` in the `{token}` placeholder, static and replayable) is removed. The webhook always sends a JWT in the `Authorization: Bearer` header, with the same claims as before; `WEBHOOK_USE_JWT=False` and `{token}` are rejected at startup. `WEBHOOK_SECRET` must be base64 encoded.
+- Webhook: the simple token (`sha256(secret + sender)` in the `{token}` placeholder, static and replayable) is removed. The webhook always sends a JWT in the `Authorization: Bearer` header, with the same claims as before; `WEBHOOK_USE_JWT=False` and `{token}` are rejected at startup. `WEBHOOK_SECRET` must be base64 encoded and decode to at least 32 bytes, the minimum for HS256 (a shorter key fails on the receiving side, e.g. lcobucci/jwt 5).
 - `DB_POOL_MAXSHARED` and `DB_POOL_MAXUSAGE` are ignored (PyMySQL connections can't be shared, and DBUtils doesn't recycle connections inside transactions).
 - `DB_LOCK_WAIT_TIMEOUT` is limited to 1–8 s, below Postfix's `timeout=10s`.
 - An invalid `SENTRY_DSN` is a configuration error.

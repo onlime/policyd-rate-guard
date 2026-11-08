@@ -11,7 +11,7 @@ from policyd_rate_guard.log import ContextFilter
 from policyd_rate_guard.protocol import parse_request
 from policyd_rate_guard.service import INVALID_ACTION, Outcome, PolicyService
 
-from .helpers import postfix_request
+from .helpers import SECRET, postfix_request
 
 
 def service(settings: Settings, db: Any = None) -> PolicyService:
@@ -92,7 +92,7 @@ def test_store_failure_keeps_the_decision(
     monkeypatch.setattr(service_module, 'count_message', lambda *a: blocked)
     monkeypatch.setattr(service_module, 'store_message', MagicMock(side_effect=RuntimeError('Data too long')))
     settings = make_settings(
-        webhook=WebhookSettings(enabled=True, url='https://x/{sender}', secret='c2VjcmV0'),
+        webhook=WebhookSettings(enabled=True, url='https://x/{sender}', secret=SECRET),
         action_text_blocked='Slow down',
     )
     outcome = service(settings, db).decide(parse_request(postfix_request('u@example.com', recipient_count=6)))

@@ -26,9 +26,9 @@ from policyd_rate_guard.ratelimit import (
 from policyd_rate_guard.server import PolicyServer, bind_listen_socket
 from policyd_rate_guard.service import PolicyService
 
-from .helpers import postfix_request
+from .helpers import SECRET, postfix_request
 
-WEBHOOK = WebhookSettings(enabled=True, url='https://example.com/{sender}', secret='c2VjcmV0')
+WEBHOOK = WebhookSettings(enabled=True, url='https://example.com/{sender}', secret=SECRET)
 
 
 def test_is_over_quota() -> None:

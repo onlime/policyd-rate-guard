@@ -99,7 +99,7 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 markers = [
     "db: needs a MySQL/MariaDB server (TEST_DATABASE_URL)",
-    "e2e: needs the docker compose stack with a real Postfix (E2E_SMTP_HOST)",
+    "e2e: needs the docker compose stack with a real Postfix (E2E_SMTP_PORT)",
 ]
 filterwarnings = [
     # yoyo-migrations 9.0 still passes db= and passwd= to PyMySQL

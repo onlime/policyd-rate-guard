@@ -148,6 +148,9 @@ def parse_listen_address(value: str) -> TcpAddress:
     return TcpAddress(host, port_number)
 
 
+WEBHOOK_SECRET_MIN_BYTES = 32
+
+
 def _validate_webhook(webhook: WebhookSettings, errors: list[str]) -> None:
     if not webhook.enabled:
         return
@@ -167,9 +170,16 @@ def _validate_webhook(webhook: WebhookSettings, errors: list[str]) -> None:
         errors.append('WEBHOOK_SECRET: required when WEBHOOK_ENABLED=True')
     else:
         try:
-            b64decode(webhook.secret, validate=True)
+            key = b64decode(webhook.secret, validate=True)
         except binascii.Error:
             errors.append('WEBHOOK_SECRET: must be base64 encoded')
+        else:
+            # HS256 needs a key of at least 256 bits: shorter ones are rejected by the receiving side (lcobucci/jwt 5)
+            if len(key) < WEBHOOK_SECRET_MIN_BYTES:
+                errors.append(
+                    f'WEBHOOK_SECRET: must decode to at least {WEBHOOK_SECRET_MIN_BYTES} bytes, has {len(key)} '
+                    '(generate one with: openssl rand -base64 32)'
+                )
 
 
 def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:

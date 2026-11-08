@@ -1,5 +1,8 @@
 """Test helpers."""
 
+# A base64 webhook secret of 32 bytes, the minimum for HS256
+SECRET = 'Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20='
+
 
 def postfix_request(
     sasl_username: str | None = 'user@example.com',

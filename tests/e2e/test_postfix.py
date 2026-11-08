@@ -122,6 +122,13 @@ def test_quota_blocks_at_data_and_webhook_fires_once(fresh: Any, db: Any) -> Non
     assert claims['sub'] == user
 
 
+def test_all_recipients_are_counted(fresh: Any, db: Any) -> None:
+    """One mail to three recipients counts once as message, three times as recipient (more cases further below)."""
+    user = fresh('test02@example.com')
+    send(user, rcpts=['to@example.org', 'cc@example.org', 'bcc@example.org'])
+    assert counters(db, user) == (1, 3)
+
+
 def test_padded_client_values_are_counted(fresh: Any, db: Any) -> None:
     """With 0.x, padding MAIL FROM/HELO pushed sasl_username beyond the 2048 bytes it read: not counted."""
     user = fresh('test03@example.com')

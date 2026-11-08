@@ -14,6 +14,7 @@ smtpd_sasl_type = cyrus
 smtpd_sasl_path = smtpd
 smtpd_tls_security_level = none
 smtpd_relay_restrictions = permit_sasl_authenticated, reject
+# reject_non_fqdn_recipient first: the E2E tests need a recipient that Postfix refuses (it mustn't be counted)
 smtpd_recipient_restrictions = reject_non_fqdn_recipient, permit_sasl_authenticated, reject
 
 smtpd_restriction_classes = policyd_rate_guard

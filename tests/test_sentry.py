@@ -11,7 +11,7 @@ from policyd_rate_guard import sentry
 from policyd_rate_guard.config import DbSettings, Settings, WebhookSettings
 from policyd_rate_guard.sentry import Scrubber, init_sentry
 
-SECRET = 'Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20='
+from .helpers import SECRET
 
 
 class CaptureTransport(Transport):

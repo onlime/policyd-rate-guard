@@ -78,6 +78,7 @@ PolicydRateGuard ships its recommended production setup in `deployment/`: a syst
 2. Code and dependencies, owned by root. Install a release tag, not `main`:
 
    ```bash
+   $ apt install git python3-venv
    $ useradd --system --no-create-home --shell /usr/sbin/nologin policyd-rate-guard
    $ git clone --branch v1.0.0 https://github.com/onlime/policyd-rate-guard.git /opt/policyd-rate-guard
    $ cd /opt/policyd-rate-guard
@@ -143,8 +144,10 @@ Use role v1.0.0, which does all of this. Manually:
 3. Move the configuration from `/opt/policyd-rate-guard/.env` to `/etc/policyd-rate-guard/policyd-rate-guard.env`, and `yoyo.ini` to `/etc/policyd-rate-guard/yoyo.ini` with an absolute `sources = /opt/policyd-rate-guard/database/migrations`. Delete the old files, they were world-readable: rotate the passwords, and the webhook secret on both sides at the same time (a mismatch makes every webhook call fail).
 4. Replace `run.py`/`cleanup.py` in custom units or scripts with `venv/bin/policyd-rate-guard serve` / `cleanup`.
 5. Set `MESSAGE_RETENTION` if you haven't: 0.x kept all messages forever by default. The first cleanup purges the backlog in batches.
-6. A unix socket is no longer bound by the daemon (`SOCKET=/path`): set it up in the socket unit instead (`ListenStream=`, see above).
+6. A unix socket is no longer bound by the daemon: remove `SOCKET=/path` (rejected at startup) and set it up in the socket unit instead (`ListenStream=`, see above).
 7. The webhook always sends a JWT: remove `WEBHOOK_USE_JWT=False` and a `{token}` in `WEBHOOK_URL`, and verify the JWT on the receiving side (see below).
+8. `LOG_FILE` must be below `/var/log/policyd-rate-guard/`, the only log directory the hardened unit can write to (`LogsDirectory=`). A log file elsewhere makes the service fail at startup.
+9. `WEBHOOK_SECRET` must decode to at least 32 bytes (HS256). Generate a new one with `openssl rand -base64 32`.
 
 The database schema is unchanged.
 
@@ -170,7 +173,7 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `MESSAGE_RETENTION` | `0` | Days to keep rows in `messages`; `0` keeps them forever |
 | `SENTRY_DSN`, `SENTRY_ENVIRONMENT` | , `dev` | Error reporting to [Sentry](https://sentry.io/) |
 | `WEBHOOK_ENABLED` | `False` | Call a webhook when a sender reaches the quota, see below |
-| `WEBHOOK_URL`, `WEBHOOK_SECRET` | | Webhook URL, shared secret (base64) for the JWT |
+| `WEBHOOK_URL`, `WEBHOOK_SECRET` | | Webhook URL, shared secret for the JWT (base64, at least 32 bytes) |
 | `WEBHOOK_ALLOW_HTTP` | `False` | Allow `http://` webhook URLs (local development only) |
 
 The log line of each counted message has this format (scripts may rely on it):

@@ -11,7 +11,7 @@ from policyd_rate_guard.config import (
     settings_from_mapping,
 )
 
-SECRET = 'Wk9YZXliVlVtY2pQcFlFUm9KY1U1ZkFFaUpWTk1FU20='
+from .helpers import SECRET
 
 
 def test_defaults() -> None:
@@ -116,6 +116,7 @@ def test_all_errors_are_reported_at_once() -> None:
         ({'WEBHOOK_URL': 'https://example.com/{nope}', 'WEBHOOK_SECRET': SECRET}, "unknown placeholder(s) ['nope']"),
         ({'WEBHOOK_URL': 'https://example.com/{sender', 'WEBHOOK_SECRET': SECRET}, 'invalid placeholder syntax'),
         ({'WEBHOOK_URL': 'https://example.com/', 'WEBHOOK_SECRET': 'not base64!'}, 'must be base64 encoded'),
+        ({'WEBHOOK_URL': 'https://example.com/', 'WEBHOOK_SECRET': 'c2VjcmV0'}, 'at least 32 bytes, has 6'),
         # the simple token of 0.x is gone: no {token} placeholder, WEBHOOK_USE_JWT=False is rejected
         ({'WEBHOOK_URL': 'https://example.com/?token={token}', 'WEBHOOK_SECRET': SECRET}, "['token']"),
         (
