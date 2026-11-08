@@ -12,6 +12,8 @@ smtputf8_enable = yes
 smtpd_sasl_auth_enable = yes
 smtpd_sasl_type = cyrus
 smtpd_sasl_path = smtpd
+# where smtpd.conf is (mech_list: PLAIN LOGIN, as Dovecot offers on our MX hosts); without it Cyrus offers all
+cyrus_sasl_config_path = /etc/postfix/sasl
 smtpd_tls_security_level = none
 smtpd_relay_restrictions = permit_sasl_authenticated, reject
 # reject_non_fqdn_recipient first: the E2E tests need a recipient that Postfix refuses (it mustn't be counted)

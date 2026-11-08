@@ -85,11 +85,12 @@ def send_bdat(user: str) -> tuple[int, bytes]:
 
 
 def webhook_calls(expected: int) -> list[Any]:
-    """The webhook runs after the reply, in its own thread: wait for it."""
+    """The webhook runs after the reply, in its own thread: wait for it, and a bit longer for one too many."""
     for _ in range(50):
         calls: list[Any] = webhook('GET')
         if len(calls) >= expected:
-            return calls
+            time.sleep(0.5)
+            return list(webhook('GET'))
         time.sleep(0.1)
     return calls
 
@@ -203,11 +204,16 @@ def deliver(user: str, mail: Mail) -> Delivery:
         return Delivery(code, reply.decode(), accepted)
 
 
-def last_message(db: Any, user: str) -> dict[str, Any]:
-    with db.cursor() as cursor:
-        cursor.execute('SELECT * FROM `messages` WHERE `sender` = %s ORDER BY `id` DESC LIMIT 1', (user,))
-        row: dict[str, Any] = cursor.fetchone()
-    return row
+def stored_messages(db: Any, user: str, expected: int = 1) -> list[dict[str, Any]]:
+    """The sender's `messages` rows: Postfix gets its answer as soon as the message is counted, the row follows."""
+    for _ in range(50):
+        with db.cursor() as cursor:
+            cursor.execute('SELECT * FROM `messages` WHERE `sender` = %s ORDER BY `id`', (user,))
+            rows: list[dict[str, Any]] = cursor.fetchall()
+        if len(rows) >= expected:
+            return rows
+        time.sleep(0.1)
+    return rows
 
 
 def log_line(queue_id: str) -> list[str]:
@@ -253,7 +259,7 @@ def test_accepted_mail_is_counted_stored_and_logged(
     assert len(delivery.accepted) == counted
     assert counters(db, user) == (1, counted)
 
-    row = last_message(db, user)
+    (row,) = stored_messages(db, user)
     assert row['msgid'] == delivery.queue_id
     assert row['rcpt_count'] == counted
     assert row['blocked'] == 0
@@ -262,6 +268,7 @@ def test_accepted_mail_is_counted_stored_and_logged(
 
     fields = log_line(delivery.queue_id or '')
     assert f'sasl_username={user},' in fields
+    assert 'sasl_method=PLAIN,' in fields  # as smtplib picks it from PLAIN LOGIN
     assert f'recipient_count={counted},' in fields
     assert f'curr_count={counted}/{QUOTA},' in fields
     assert fields[-1] == 'status=ACCEPTED'
@@ -274,7 +281,7 @@ def test_one_mail_over_the_quota_is_blocked_counted_and_notified(fresh: Callable
     assert delivery.code == 450
     assert 'Rate limit reached' in delivery.reply
     assert counters(db, user) == (1, 6)
-    row = last_message(db, user)
+    (row,) = stored_messages(db, user)
     assert (row['rcpt_count'], row['blocked']) == (6, 1)
     fields = log_line(row['msgid'])
     assert f'curr_count=6/{QUOTA},' in fields
@@ -291,6 +298,37 @@ def test_several_mails_in_one_session_are_each_counted(fresh: Callable[[str], st
         for rcpts in ([A], [A, B], [C]):
             smtp.sendmail(user, rcpts, b'Subject: e2e session\r\n\r\nTest\r\n')
     assert counters(db, user) == (3, 4)
-    with db.cursor() as cursor:
-        cursor.execute('SELECT COUNT(DISTINCT `msgid`) AS n FROM `messages` WHERE `sender` = %s', (user,))
-        assert cursor.fetchone()['n'] == 3
+    assert len({row['msgid'] for row in stored_messages(db, user, 3)}) == 3
+
+
+def compose(*args: str) -> None:
+    subprocess.run(['docker', 'compose', *args], cwd=ROOT, capture_output=True, check=True)  # noqa: S603, S607
+
+
+def test_database_down_fails_open_and_counting_resumes(fresh: Callable[[str], str]) -> None:
+    """Last in this file: it stops the database. Without it Postfix accepts the mail (FAIL_ACTION DUNNO) and the
+    daemon logs an ERROR with the queue ID; once the database is back, counting resumes."""
+    user = fresh('test03@example.com')
+    compose('stop', 'db')
+    try:
+        delivery = deliver(user, Mail(to=(A,)))
+    finally:
+        compose('up', '--detach', '--wait', 'db')
+    assert delivery.code == 250, delivery.reply
+    logs = subprocess.run(  # noqa: S603
+        ['docker', 'compose', 'logs', '--no-color', '--no-log-prefix', 'policyd'],  # noqa: S607
+        cwd=ROOT, capture_output=True, text=True, check=True,
+    ).stdout  # fmt: skip
+    assert any(f' ERROR {delivery.queue_id}: ' in line and 'answering DUNNO' in line for line in logs.splitlines())
+
+    delivery = deliver(user, Mail(to=(A, B)))
+    assert delivery.code == 250
+    url = urlsplit(os.environ['E2E_DATABASE_URL'])
+    conn = pymysql.connect(
+        host=url.hostname, port=url.port or 3306, user=url.username, password=url.password or '',
+        database=url.path.lstrip('/'), autocommit=True, cursorclass=pymysql.cursors.DictCursor,
+    )  # fmt: skip
+    try:
+        assert counters(conn, user) == (1, 2)  # only the mail after the outage
+    finally:
+        conn.close()

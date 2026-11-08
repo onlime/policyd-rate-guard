@@ -116,6 +116,25 @@ def test_unknown_protocol_states_are_neither_remembered_nor_errors(
     assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
 
 
+def test_an_error_after_the_answer_is_a_warning(
+    make_settings: Callable[..., Settings], logger: logging.Logger, caplog: pytest.LogCaptureFixture
+) -> None:
+    """The event loop answered FAIL_ACTION and logged an ERROR already: no second ERROR (Zabbix, Sentry)."""
+    handover = Handover()
+
+    @contextmanager
+    def connection() -> Any:
+        handover.give_up()  # DECIDE_TIMEOUT passes while waiting for the database
+        raise ConnectionError('Lock wait timeout exceeded')
+        yield
+
+    db = MagicMock()
+    db.connection = connection
+    svc = service(make_settings(), db)
+    assert svc.decide(parse_request(postfix_request('u@example.com')), handover) == Outcome('DUNNO')
+    assert [(r.levelname, r.getMessage()) for r in caplog.records] == [('WARNING', 'Failed after the answer was given')]
+
+
 def test_answered_before_a_worker_was_free_is_not_counted(
     make_settings: Callable[..., Settings], logger: logging.Logger, caplog: pytest.LogCaptureFixture
 ) -> None:

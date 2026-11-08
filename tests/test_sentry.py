@@ -32,7 +32,9 @@ def transport(monkeypatch: pytest.MonkeyPatch) -> Iterator[CaptureTransport]:
         return original(transport=capture, **kwargs)
 
     monkeypatch.setattr(
-        sentry, 'sentry_sdk', type('M', (), {'init': staticmethod(init), 'set_tag': sentry_sdk.set_tag})
+        sentry,
+        'sentry_sdk',
+        type('M', (), {'init': staticmethod(init), 'get_global_scope': staticmethod(sentry_sdk.get_global_scope)}),
     )
     yield capture
     sentry_sdk.get_client().close()
@@ -127,3 +129,25 @@ def test_no_trace_headers_on_outgoing_requests(
     httpd.server_close()
     assert headers
     assert not {name.lower() for name in headers[0]} & {'sentry-trace', 'baggage'}
+
+
+def test_init_doesnt_wait_for_dns(
+    transport: CaptureTransport, make_settings: Callable[..., Settings], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """getfqdn() may hang on DNS; the daemon must serve right away (Postfix's requests wait in the socket)."""
+    import socket
+    import time
+
+    def slow_getfqdn() -> str:
+        time.sleep(0.5)
+        return 'mx.example.net'
+
+    monkeypatch.setattr(socket, 'getfqdn', slow_getfqdn)
+    started = time.monotonic()
+    assert init_sentry(make_settings(sentry_dsn='https://public@example.invalid/1'))
+    assert time.monotonic() - started < 0.3
+    for _ in range(200):  # the global scope outlives tests: wait for this test's value
+        if sentry_sdk.get_global_scope()._tags.get('fqdn') == 'mx.example.net':
+            break
+        time.sleep(0.01)
+    assert sentry_sdk.get_global_scope()._tags.get('fqdn') == 'mx.example.net'

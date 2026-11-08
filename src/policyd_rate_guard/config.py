@@ -201,7 +201,7 @@ def settings_from_mapping(values: Mapping[str, str | None]) -> Settings:
         pool_mincached=r.integer('DB_POOL_MINCACHED', 0),
         pool_maxcached=r.integer('DB_POOL_MAXCACHED', 10),
         pool_maxconnections=r.integer('DB_POOL_MAXCONNECTIONS', 10, 1, 1000),
-        lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 8),  # below Postfix's timeout=10s
+        lock_wait_timeout=r.integer('DB_LOCK_WAIT_TIMEOUT', 5, 1, 7),  # ends before DECIDE_TIMEOUT (8 s)
     )
     webhook = WebhookSettings(
         enabled=r.flag('WEBHOOK_ENABLED', False),

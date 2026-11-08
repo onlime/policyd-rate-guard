@@ -124,6 +124,7 @@ smtpd_data_restrictions =
 - `default_action=DUNNO`: if the daemon is unavailable, Postfix accepts the mail as if the rule wasn't there. Monitor the daemon (service state, and Postfix's `problem talking to server` warnings in `mail.log`).
 - `timeout=10s`: with socket activation the kernel accepts connections even while the service is down, so without a short timeout Postfix would wait 2 × 100 s per SMTP session before using the `default_action`.
 - BDAT (CHUNKING) is covered: Postfix evaluates `smtpd_data_restrictions` for it as well.
+- Put it last, after the restrictions that may still reject the mail: a sender under the quota gets `OK`, which ends the restriction list like `permit` (one over the quota gets `DEFER_IF_PERMIT`).
 
 > [!TIP]
 > Any local user can connect to `127.0.0.1:10033`. To allow only Postfix, use a unix socket: in `policyd-rate-guard.socket`, use `ListenStream=/var/spool/postfix/private/policyd-rate-guard` with `SocketUser=postfix`, `SocketGroup=postfix`, `SocketMode=0600`, and in Postfix `check_policy_service { unix:private/policyd-rate-guard, timeout=10s, default_action=DUNNO }`.
@@ -162,7 +163,7 @@ All settings are environment variables, usually from `/etc/policyd-rate-guard/po
 | `DB_USER`, `DB_PASSWORD`, `DB_DATABASE` | `policyd-rate-guard`, empty, `policyd-rate-guard` | Credentials and database name |
 | `DB_POOL_MAXCONNECTIONS` | `10` | Database connections, also the number of requests processed in parallel |
 | `DB_POOL_MINCACHED`, `DB_POOL_MAXCACHED` | `0`, `10` | [DBUtils PooledDB](https://webwareforpython.github.io/DBUtils/main.html#pooleddb-pooled-db-1) tuning |
-| `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds (1–8) to wait for a locked row or table before answering `FAIL_ACTION`. A request not decided within 8 s gets `FAIL_ACTION` too, before Postfix's `timeout=10s`. |
+| `DB_LOCK_WAIT_TIMEOUT` | `5` | Seconds (1–7) to wait for a locked row or table before answering `FAIL_ACTION`. A request not decided within 8 s gets `FAIL_ACTION` too, before Postfix's `timeout=10s`. |
 | `QUOTA` | `1000` | Default quota (recipients and messages per period) of new senders |
 | `ACTION_TEXT_BLOCKED` | `Rate limit reached, retry later` | Text of the `DEFER_IF_PERMIT` answer for senders over quota |
 | `FAIL_ACTION` | `DUNNO` | Answer on internal errors (e.g. database down): `DUNNO` (accept) or `DEFER_IF_PERMIT` |
@@ -239,7 +240,11 @@ Route::post('/policyd/{mailaccount:username}', PolicydWebhookController::class)
 The middleware, using [`lcobucci/jwt`](https://github.com/lcobucci/jwt) and [`lcobucci/clock`](https://github.com/lcobucci/clock). A missing or invalid token, or one for another sender, gets a 403:
 
 ```php
+namespace App\Http\Middleware;
+
+use Closure;
 use DateInterval;
+use Illuminate\Http\Request;
 use Lcobucci\Clock\SystemClock;
 use Lcobucci\JWT\Exception as JwtException;
 use Lcobucci\JWT\JwtFacade;
@@ -247,6 +252,7 @@ use Lcobucci\JWT\Signer\Hmac\Sha256;
 use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
 use Lcobucci\JWT\Validation\Constraint\StrictValidAt;
+use Symfony\Component\HttpFoundation\Response;
 
 class AccessApiWebhookPolicyd
 {
@@ -282,8 +288,14 @@ $ git clone https://github.com/onlime/policyd-rate-guard.git
 $ cd policyd-rate-guard
 $ python3 -m venv .venv
 $ . .venv/bin/activate
+(.venv)$ pip install -U pip
 (.venv)$ pip install --group dev -e .
-(.venv)$ pip install pre-commit && pre-commit install    # optional: ruff on git push
+```
+
+`--group` needs pip 25.1 or later, hence the upgrade first. Optionally, run ruff on every `git push`:
+
+```bash
+(.venv)$ pip install pre-commit && pre-commit install
 ```
 
 The following commands run in the activated venv.
@@ -302,8 +314,10 @@ The tests come in three levels. Each needs a bit more and tests more of the real
 
 ```bash
 $ pytest
-$ pytest tests/test_protocol.py              # one file
-$ pytest -k webhook -x                       # tests matching "webhook", stop at the first failure
+# one file:
+$ pytest tests/test_protocol.py
+# the tests matching "webhook", stopping at the first failure:
+$ pytest -k webhook -x
 ```
 
 **Database tests** need `TEST_DATABASE_URL`, a server where the user may create databases: each test run creates a fresh database, applies the migrations and drops it at the end. The compose stack has one (MySQL 8.4 on port 13312):
@@ -318,7 +332,8 @@ $ docker compose down
 
 ```bash
 $ docker run -d --name policyd-test-mariadb -p 13313:3306 -e MARIADB_ROOT_PASSWORD=test mariadb:12.3
-$ sleep 15                                   # until the server accepts connections
+# wait until the server accepts connections:
+$ sleep 15
 $ TEST_DATABASE_URL=mysql://root:test@127.0.0.1:13313 pytest
 $ docker rm -f policyd-test-mariadb
 ```
@@ -332,7 +347,7 @@ $ E2E_SMTP_PORT=1587 E2E_DATABASE_URL=mysql://root:test@127.0.0.1:13312/policyd-
 $ docker compose down
 ```
 
-On GitHub, the end-to-end tests run as their own workflow (E2E) on every push and pull request, next to CI.
+On GitHub, the end-to-end tests run as their own workflow (E2E) next to CI, on pushes to `main` and `develop` and on pull requests.
 
 The compose stack is also handy to try things by hand: submission on `localhost:1587` (e.g. `swaks --server localhost:1587 --auth PLAIN --auth-user test01@example.com --auth-password Example1234 --to rcpt@example.org`), the daemon's log with `docker compose logs -f policyd`, recorded webhook calls on `http://localhost:18080/calls`.
 
@@ -347,8 +362,11 @@ $ mypy
 ### Running the daemon locally
 
 ```bash
-$ docker compose up -d --wait db migrate
-$ cp .env.example .env    # adjust: DB_HOST=127.0.0.1, DB_PORT=13312, DB_PASSWORD=Example1234, LOG_CONSOLE=True
+$ docker compose up -d --wait db
+$ docker compose run --rm migrate
+$ cp .env.example .env
+# in .env: DB_HOST=127.0.0.1, DB_PORT=13312, DB_USER=policyd-rate-guard, DB_PASSWORD=Example1234, LOG_CONSOLE=True,
+# and comment out LOG_FILE (its directory only exists on a server)
 $ policyd-rate-guard --env-file .env serve
 $ policyd-rate-guard --env-file .env cleanup
 ```

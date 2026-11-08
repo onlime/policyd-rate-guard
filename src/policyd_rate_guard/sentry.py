@@ -9,6 +9,7 @@ configured secrets and token query parameters.
 import logging
 import re
 import socket
+import threading
 from typing import Any
 
 import sentry_sdk
@@ -82,6 +83,11 @@ def init_sentry(settings: Settings) -> bool:
         before_breadcrumb=scrubber.before_breadcrumb,
         integrations=[LoggingIntegration(level=None, event_level=logging.ERROR)],
     )
-    # In addition to the (auto-detected) server_name, provide the FQDN as tag
-    sentry_sdk.set_tag('fqdn', socket.getfqdn())
+    # In addition to the (auto-detected) server_name, provide the FQDN as tag. getfqdn() asks DNS, which may hang:
+    # in the background, so the daemon serves right away (Postfix's requests would wait in the socket meanwhile).
+    threading.Thread(target=_set_fqdn_tag, name='sentry-fqdn', daemon=True).start()
     return True
+
+
+def _set_fqdn_tag() -> None:
+    sentry_sdk.get_global_scope().set_tag('fqdn', socket.getfqdn())

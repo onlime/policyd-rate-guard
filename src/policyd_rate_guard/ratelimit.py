@@ -219,6 +219,10 @@ def check_writes(db: Database, default_quota: int) -> None:
                 'blocked': False, 'from_addr': None, 'to_addr': None, 'client_address': None, 'client_name': None,
             })  # fmt: skip
             cursor.execute(CHECK_DELETE_SQL)
+            # the cleanup's statements (e.g. the purge needs the index on created_at)
+            cursor.execute(RESET_SQL + 'WHERE `sender` = %(sender)s', params)
+            cursor.execute(PURGE_SELECT_SQL, {'days': 0, 'batch': 1})
+            cursor.fetchall()
         finally:
             conn.rollback()
             cursor.close()

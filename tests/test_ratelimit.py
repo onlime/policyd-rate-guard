@@ -19,6 +19,7 @@ from policyd_rate_guard.protocol import parse_request
 from policyd_rate_guard.ratelimit import (
     PURGE_SELECT_SQL,
     Decision,
+    check_writes,
     count_message,
     is_over_quota,
     purge_messages,
@@ -236,6 +237,81 @@ def test_purge_reads_old_messages_in_index_order(raw_db: Any) -> None:
     assert len(plan) == 1
     assert plan[0]['key'] == 'messages_created_at_index'
     assert 'filesort' not in (plan[0]['Extra'] or '')
+    # the plan above is what the optimizer picks for small tables anyway: the hint is what keeps it for large ones
+    assert 'FORCE INDEX (`messages_created_at_index`)' in PURGE_SELECT_SQL
+
+
+@pytest.mark.db
+def test_check_runs_the_cleanups_statements(db: Database, raw_db: Any) -> None:
+    """A database the purge can't run on (here: without the index it forces) fails `check`, i.e. the deployment,
+    instead of every nightly cleanup."""
+    with raw_db.cursor() as cursor:
+        cursor.execute('ALTER TABLE `messages` DROP INDEX `messages_created_at_index`')
+    try:
+        with pytest.raises(pymysql.err.OperationalError, match='messages_created_at_index'):
+            check_writes(db, 1000)
+    finally:
+        with raw_db.cursor() as cursor:
+            cursor.execute('ALTER TABLE `messages` ADD INDEX `messages_created_at_index` (`created_at`)')
+    check_writes(db, 1000)
+
+
+@pytest.mark.db
+async def test_a_message_counted_after_the_timeout_is_recorded_as_answered(
+    db: Database,
+    raw_db: Any,
+    db_settings: DbSettings,
+    sender: str,
+    make_settings: Callable[..., Settings],
+    logger: logging.Logger,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The sender's row is locked longer than DECIDE_TIMEOUT: Postfix gets DUNNO in time, and the message counted
+    afterwards (the one that reaches the quota) is stored and logged as accepted, and still notified."""
+    from policyd_rate_guard import server as server_module
+
+    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.5)
+    settings = make_settings(quota=1, listen=TcpAddress('127.0.0.1', 0), webhook=WEBHOOK)
+    calls: list[Any] = []
+    webhook = type('Hook', (), {'call': lambda self, payload: calls.append(payload) or True})()
+    server = PolicyServer(settings, PolicyService(settings, db, logger), webhook, logger)  # type: ignore[arg-type]
+    sock = bind_listen_socket(settings)
+    await server.start([sock])
+    reader, writer = await asyncio.open_connection('127.0.0.1', sock.getsockname()[1])
+
+    async def ask(queue_id: str) -> bytes:
+        writer.write(postfix_request(sender, queue_id=queue_id))
+        await writer.drain()
+        return await asyncio.wait_for(reader.readuntil(b'\n\n'), 10)
+
+    assert await ask('LATE1') == b'action=OK\n\n'
+    locker = pymysql.connect(
+        host=db_settings.host,
+        port=db_settings.port,
+        user=db_settings.user,
+        password=db_settings.password,
+        database=db_settings.database,
+    )
+    with locker.cursor() as cursor:
+        cursor.execute('SELECT * FROM `ratelimits` WHERE `sender` = %s FOR UPDATE', (sender,))
+    loop = asyncio.get_running_loop()
+    loop.call_later(1.5, locker.rollback)
+    started = time.monotonic()
+    assert await ask('LATE2') == b'action=DUNNO\n\n'
+    assert time.monotonic() - started < 1.0
+    for _ in range(100):
+        if calls:
+            break
+        await asyncio.sleep(0.05)
+    writer.close()
+    await server.shutdown()
+    locker.close()
+    assert [(p.msgid, p.used) for p in calls] == [('LATE2', 2)]
+    with raw_db.cursor() as cursor:
+        cursor.execute('SELECT `msgid`, `blocked` FROM `messages` WHERE `sender` = %s ORDER BY `id`', (sender,))
+        assert [(r['msgid'], r['blocked']) for r in cursor.fetchall()] == [('LATE1', 0), ('LATE2', 0)]
+    assert 'status=ACCEPTED (DECIDE_TIMEOUT)' in caplog.text
 
 
 @pytest.mark.db

@@ -196,4 +196,4 @@ def test_sentry_dsn_and_lock_wait_are_validated() -> None:
         settings_from_mapping({'SENTRY_DSN': 'https://abc@o1.ingest.sentry.io'})  # no project ID
     assert 'abc@' not in str(info.value)  # the DSN is a secret
     with pytest.raises(ConfigError, match='DB_LOCK_WAIT_TIMEOUT'):
-        settings_from_mapping({'DB_LOCK_WAIT_TIMEOUT': '9'})  # longer than Postfix waits
+        settings_from_mapping({'DB_LOCK_WAIT_TIMEOUT': '8'})  # would end with DECIDE_TIMEOUT, not before

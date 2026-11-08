@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import datetime
 
@@ -30,11 +31,13 @@ class Handover:
     """Hands the decision from the worker to the event loop, which answers FAIL_ACTION after DECIDE_TIMEOUT.
 
     Once the event loop has given up, the worker must not count a message it hasn't counted yet, and must log, store
-    and notify what Postfix actually got for one it has.
+    and notify what Postfix actually got for one it has. ``on_decision`` lets the event loop answer as soon as the
+    message is counted, without waiting for the worker to store and log it.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, on_decision: Callable[[Outcome], None] | None = None) -> None:
         self._lock = threading.Lock()
+        self._on_decision = on_decision
         self.abandoned = False
         self.outcome: Outcome | None = None
 
@@ -48,9 +51,12 @@ class Handover:
     def hand_over(self, outcome: Outcome) -> bool:
         """Worker, right after counting: False if the event loop has answered FAIL_ACTION already."""
         with self._lock:
-            if not self.abandoned:
-                self.outcome = outcome
-            return not self.abandoned
+            if self.abandoned:
+                return False
+            self.outcome = outcome
+        if self._on_decision is not None:
+            self._on_decision(outcome)
+        return True
 
 
 class PolicyService:
@@ -79,7 +85,11 @@ class PolicyService:
             try:
                 return self._decide(request, handover)
             except Exception:
-                self.logger.exception('Unhandled exception, answering %s', self.settings.fail_action)
+                if handover is not None and handover.abandoned:
+                    # the event loop answered FAIL_ACTION already, and logged that at ERROR
+                    self.logger.warning('Failed after the answer was given', exc_info=True)
+                else:
+                    self.logger.exception('Unhandled exception, answering %s', self.settings.fail_action)
                 return Outcome(self.settings.fail_action)
 
     def _precheck(self, request: PolicyRequest) -> Outcome | None:

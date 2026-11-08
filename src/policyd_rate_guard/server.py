@@ -17,7 +17,7 @@ from typing import Any
 
 from .config import Settings
 from .log import queue_id_context
-from .protocol import PolicyRequest, format_response, parse_request
+from .protocol import PolicyRequest, format_response, parse_request, sanitize
 from .service import INVALID_ACTION, Handover, Outcome, PolicyService
 from .systemd import notify
 from .webhook import Webhook, WebhookPayload
@@ -166,22 +166,36 @@ class PolicyServer:
             self.logger.debug('Received request: %r', data[:4096])
         outcome = self.service.precheck(request)
         if outcome is None:
-            loop = asyncio.get_running_loop()
-            handover = Handover()
-            try:
-                async with asyncio.timeout(DECIDE_TIMEOUT):
-                    outcome = await loop.run_in_executor(self.db_executor, self._decide, request, handover)
-            except TimeoutError:
-                # Counted and decided, only storing and logging are still running: answer the decision
-                outcome = handover.give_up()
-                if outcome is None:
-                    with queue_id_context(request.queue_id):
-                        self.logger.error(
-                            'No decision within %.0f s (database slow or workers busy), answering %s',
-                            DECIDE_TIMEOUT,
-                            self.settings.fail_action,
-                        )
-                    outcome = Outcome(self.settings.fail_action)
+            outcome = await self._decide_in_worker(request)
+        return outcome
+
+    async def _decide_in_worker(self, request: PolicyRequest) -> Outcome:
+        """The decision, as soon as the message is counted (storing and logging it go on in the worker)."""
+        loop = asyncio.get_running_loop()
+        decided: asyncio.Future[Outcome] = loop.create_future()
+
+        def on_decision(outcome: Outcome) -> None:  # in the worker
+            with contextlib.suppress(RuntimeError):  # the loop is closed: nobody waits any more
+                loop.call_soon_threadsafe(_set_result, decided, outcome)
+
+        handover = Handover(on_decision)
+        work = loop.run_in_executor(self.db_executor, self._decide, request, handover)
+        work.add_done_callback(_retrieve)
+        done, _ = await asyncio.wait({decided, work}, timeout=DECIDE_TIMEOUT, return_when=asyncio.FIRST_COMPLETED)
+        if decided in done:
+            return decided.result()
+        if work in done:
+            return work.result()  # e.g. FAIL_ACTION after a database error
+        work.cancel()  # drops the request if it's still waiting for a worker
+        outcome = handover.give_up()  # counted just now: still the decision
+        if outcome is None:
+            with queue_id_context(request.queue_id):
+                self.logger.error(
+                    'No decision within %.0f s (database slow or workers busy), answering %s',
+                    DECIDE_TIMEOUT,
+                    self.settings.fail_action,
+                )
+            outcome = Outcome(self.settings.fail_action)
         return outcome
 
     def _decide(self, request: PolicyRequest, handover: Handover) -> Outcome:
@@ -194,9 +208,8 @@ class PolicyServer:
     def _notify(self, payload: WebhookPayload) -> None:
         # At most once per sender and period. A daemon thread: a shutdown waits WEBHOOK_SHUTDOWN_GRACE at most.
         if self.webhook is not None:
-            thread = threading.Thread(
-                target=self._call_webhook, args=(payload,), name=f'webhook for {payload.msgid}', daemon=True
-            )
+            name = f'webhook for {sanitize(payload.msgid, 64)}'
+            thread = threading.Thread(target=self._call_webhook, args=(payload,), name=name, daemon=True)
             self._webhook_threads.add(thread)
             thread.start()
 
@@ -207,6 +220,17 @@ class PolicyServer:
                     self.webhook.call(payload)
         finally:
             self._webhook_threads.discard(threading.current_thread())
+
+
+def _set_result(future: asyncio.Future[Outcome], outcome: Outcome) -> None:
+    if not future.done():
+        future.set_result(outcome)
+
+
+def _retrieve(future: asyncio.Future[Outcome]) -> None:
+    """A worker's result nobody waits for any more: no "exception was never retrieved" warning."""
+    if not future.cancelled():
+        future.exception()
 
 
 async def _close(writer: asyncio.StreamWriter) -> None:

@@ -15,7 +15,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - Database connect, read, write and lock wait timeouts, and a decision within 8 s: a request that can't be decided in time gets `FAIL_ACTION` before Postfix's timeout, and one still waiting for a worker is dropped. A slow or locked database can no longer make requests pile up, or get a message counted twice when Postfix retries.
 - The configuration is read from an explicit file only (`load_dotenv()` searched parent directories) and lives in `/etc/policyd-rate-guard/` instead of the code directory.
 - The systemd units run as a dedicated user `policyd-rate-guard` (instead of `postfix`, the mail owner) with full sandboxing (`systemd-analyze security`: 1.1 instead of 9.0).
-- Dependencies are installed as binary wheels only, so no third-party code runs at install time.
+- Dependencies are installed as binary wheels only, so none of their build scripts run at install time (setuptools, itself a wheel, only builds PolicydRateGuard from the checkout).
 
 **Changed (breaking):**
 
@@ -28,7 +28,7 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - Webhook: `https://` is required unless `WEBHOOK_ALLOW_HTTP=True`; placeholders in `WEBHOOK_URL` are URL-encoded and checked at startup; `rcpt_count` in the payload is an integer.
 - Webhook: the simple token (`sha256(secret + sender)` in the `{token}` placeholder, static and replayable) is removed. The webhook always sends a JWT in the `Authorization: Bearer` header, with the same claims as before; `WEBHOOK_USE_JWT=False` and `{token}` are rejected at startup. `WEBHOOK_SECRET` must be base64 encoded and decode to at least 32 bytes, the minimum for HS256 (a shorter key fails on the receiving side, e.g. lcobucci/jwt 5).
 - `DB_POOL_MAXSHARED` and `DB_POOL_MAXUSAGE` are ignored (PyMySQL connections can't be shared, and DBUtils doesn't recycle connections inside transactions).
-- `DB_LOCK_WAIT_TIMEOUT` is limited to 1–8 s, below Postfix's `timeout=10s`.
+- `DB_LOCK_WAIT_TIMEOUT` is limited to 1–7 s, so a lock wait ends before the 8 s decision limit (and Postfix's `timeout=10s`).
 - An invalid `SENTRY_DSN` is a configuration error.
 
 **Improved:**
@@ -42,10 +42,11 @@ A rewrite for Debian 13 (Python 3.13+, Postfix 3.10, systemd 257) with several s
 - Daily cleanup resets counters in one statement and purges old messages in batches. Each batch reads the oldest messages through the `created_at` index and deletes them by id, so the first purge of years of messages (0.x kept them forever) takes about as long per batch as any later one, whatever plan the optimizer would choose for a `DELETE … ORDER BY … LIMIT`.
 - An ERROR (once per stage) if the daemon is used outside the DATA, BDAT or END-OF-MESSAGE stage, where the recipient count is final; a request with a protocol state that Postfix never sends is answered as invalid.
 - The nightly cleanup is retried by systemd every minute for about an hour if resetting the counters fails (e.g. a row locked at midnight); a failed purge is logged and continued the next night.
-- `check` runs the statements of a policy request and the cleanup in a transaction that is rolled back, so a missing privilege or an unsuitable binlog format fails the check (and the Ansible deployment) instead of every request.
+- `check` runs the statements of a policy request and of the cleanup (reset and purge) in a transaction that is rolled back, so a missing privilege, index or an unsuitable binlog format fails the check (and the Ansible deployment) instead of every request or every nightly cleanup.
 - Webhook failures are logged at ERROR, with the queue ID of the message. A restart waits for a webhook call in flight for 2 s at most: a hanging call (e.g. DNS) kept the old process alive, and Postfix's requests waited in the socket until it gave up and retried them, which counted those messages twice.
 - A message counted after Postfix already got `FAIL_ACTION` (decision timeout) is logged and stored with the answer Postfix actually got (`status=ACCEPTED (DECIDE_TIMEOUT)` for `DUNNO`), and its webhook still fires; one counted just before the timeout gets its decision instead of `FAIL_ACTION`.
-- A failing Sentry initialization no longer stops the daemon.
+- Postfix gets the decision as soon as the message is counted; the `messages` row and the log line follow. A slow insert into `messages` (e.g. a lock) no longer delays the mail. An error after the timeout answer is logged as a WARNING, not as a second ERROR.
+- A failing Sentry initialization no longer stops the daemon, and its `fqdn` tag is looked up in the background (DNS could otherwise delay the start while Postfix waits).
 - Logs of libraries (urllib3, Sentry, yoyo) no longer end up in the policy log.
 
 **Added:**

@@ -5,7 +5,7 @@ import tempfile
 import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -301,19 +301,21 @@ async def test_undecided_requests_get_fail_action_before_postfix_gives_up(
     await run.server.shutdown()
 
 
-async def test_a_decision_made_in_time_is_answered_while_still_storing(
-    server_factory: Callable[..., Any], monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+async def test_the_decision_is_answered_while_still_storing(
+    server_factory: Callable[..., Any], caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Counted before the timeout: Postfix gets the decision (and the webhook fires), not FAIL_ACTION."""
-    monkeypatch.setattr(server_module, 'DECIDE_TIMEOUT', 0.2)
+    """Counted: Postfix gets the decision right away, not after the messages row (e.g. waiting for a lock) or the
+    timeout, and the webhook fires."""
     webhook = FakeWebhook()
     webhook.release.set()
     blocked = Outcome('DEFER_IF_PERMIT Rate limit reached', PAYLOAD)
-    run = await server_factory(FakeService(blocked, store_delay=0.6), webhook)
+    run = await server_factory(FakeService(blocked, store_delay=1.0), webhook)
     reader, writer = await run.connect()
+    started = time.monotonic()
     assert (
         await ask(reader, writer, postfix_request('u@example.com')) == b'action=DEFER_IF_PERMIT Rate limit reached\n\n'
     )
+    assert time.monotonic() - started < 0.5
     assert 'No decision within' not in caplog.text
     for _ in range(100):
         if webhook.calls:
@@ -361,6 +363,17 @@ async def test_shutdown_waits_for_a_webhook_only_briefly(
     assert time.monotonic() - started < 2
     assert 'Webhook call abandoned at shutdown (webhook for Q)' in caplog.text
     webhook.release.set()
+
+
+def test_webhook_thread_name_is_escaped(make_settings: Callable[..., Settings], logger: logging.Logger) -> None:
+    """The name ends up in a log line (abandoned at shutdown); the queue ID comes from the request."""
+    webhook = FakeWebhook()
+    server = PolicyServer(make_settings(), FakeService(), webhook, logger)  # type: ignore[arg-type]
+    server._notify(replace(PAYLOAD, msgid='Q\x1b[31m\r' + 'x' * 100))
+    (thread,) = server._webhook_threads
+    assert thread.name.startswith('webhook for Q\\x1b[31m\\x0d') and len(thread.name) < 90
+    webhook.release.set()
+    thread.join(5)
 
 
 async def test_webhook_failure_is_logged_with_the_queue_id(
