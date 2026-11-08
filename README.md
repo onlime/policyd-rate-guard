@@ -127,7 +127,7 @@ smtpd_data_restrictions =
 - Put it last, after the restrictions that may still reject the mail: a sender under the quota gets `OK`, which ends the restriction list like `permit` (one over the quota gets `DEFER_IF_PERMIT`).
 
 > [!TIP]
-> Any local user can connect to `127.0.0.1:10033`. To allow only Postfix, use a unix socket: in `policyd-rate-guard.socket`, use `ListenStream=/var/spool/postfix/private/policyd-rate-guard` with `SocketUser=postfix`, `SocketGroup=postfix`, `SocketMode=0600`, and in Postfix `check_policy_service { unix:private/policyd-rate-guard, timeout=10s, default_action=DUNNO }`.
+> Any local user can connect to `127.0.0.1:10033`. To allow only Postfix, use a unix socket: in `policyd-rate-guard.socket`, use `ListenStream=/var/spool/postfix/policyd-rate-guard/policyd.sock` with `SocketUser=postfix`, `SocketGroup=postfix`, `SocketMode=0600`, and in Postfix `check_policy_service { unix:policyd-rate-guard/policyd.sock, timeout=10s, default_action=DUNNO }`. Put it in a directory nobody but root can write to (systemd creates this one as root 0755), never in Postfix's `private/`: systemd's chown of the socket follows a symlink, so postfix could take over any file.
 
 ```bash
 $ systemctl reload postfix

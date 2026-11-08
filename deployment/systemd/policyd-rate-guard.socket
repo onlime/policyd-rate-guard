@@ -6,8 +6,10 @@ Documentation=https://github.com/onlime/policyd-rate-guard
 [Socket]
 # Postfix: check_policy_service { inet:127.0.0.1:10033, timeout=10s, default_action=DUNNO }
 ListenStream=127.0.0.1:10033
-# Alternative: a unix socket only Postfix can connect to (Postfix: unix:private/policyd-rate-guard)
-#ListenStream=/var/spool/postfix/private/policyd-rate-guard
+# Alternative: a unix socket only Postfix can connect to (Postfix: unix:policyd-rate-guard/policyd.sock).
+# Only in a directory nobody but root can write to (systemd creates it as root 0755), never in Postfix's private/:
+# systemd's chown of the socket follows a symlink, so postfix could take over any file there.
+#ListenStream=/var/spool/postfix/policyd-rate-guard/policyd.sock
 #SocketUser=postfix
 #SocketGroup=postfix
 #SocketMode=0600
