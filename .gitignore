@@ -1,6 +1,5 @@
-# Visual Studio Code
+# Visual Studio Code (settings.json is personal, e.g. the interpreter path)
 .vscode/*
-!.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
